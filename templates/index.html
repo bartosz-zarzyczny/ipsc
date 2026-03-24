@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WinMSS Wyniki</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --div-open:     #c0392b;
+      --div-modified: #1e8449;
+      --div-standard: #1a5276;
+      --div-stdman:   #6c3483;
+    }
+    body { background: #eef1f6; font-size: .92rem; }
+
+    /* ── Upload ─────────────────────────────────────────── */
+    .upload-zone {
+      border: 2.5px dashed #4e8de8;
+      border-radius: 18px;
+      padding: 56px 24px;
+      text-align: center;
+      cursor: pointer;
+      background: #fff;
+      transition: background .2s, border-color .2s;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      background: #eaf1fd;
+      border-color: #1a5fb4;
+    }
+
+    /* ── Match header ───────────────────────────────────── */
+    .match-header {
+      background: linear-gradient(120deg, #0d1b2a 0%, #1b3a5c 60%, #1a6b96 100%);
+      color: #fff;
+      padding: 18px 24px 14px;
+    }
+    .match-header h2 { font-size: 1.4rem; margin: 0 0 4px; }
+    .match-meta       { font-size: .82rem; opacity: .75; }
+    .match-meta span  { margin-right: 18px; }
+
+    /* ── Cards ──────────────────────────────────────────── */
+    .podium-card { border-top: 4px solid #dee2e6; }
+    .podium-card.p1 { border-color: #d4ac0d; }
+    .podium-card.p2 { border-color: #aaa; }
+    .podium-card.p3 { border-color: #c0733a; }
+    .podium-emoji { font-size: 2.2rem; line-height: 1; }
+    .stat-num { font-size: 1.8rem; font-weight: 700; color: #1a5fb4; }
+
+    /* ── Filters ────────────────────────────────────────── */
+    .filter-bar { background: #fff; border-bottom: 1px solid #d8dde6; }
+
+    /* ── Tabs ───────────────────────────────────────────── */
+    .tab-strip { background: #fff; border-bottom: 2px solid #dee2e6; }
+    .tab-strip .tab-btn {
+      border: none; background: none; padding: 10px 20px;
+      font-weight: 500; color: #555; border-bottom: 3px solid transparent;
+      margin-bottom: -2px; cursor: pointer; transition: color .15s;
+    }
+    .tab-strip .tab-btn:hover { color: #1a5fb4; }
+    .tab-strip .tab-btn.active { color: #1a5fb4; border-bottom-color: #1a5fb4; }
+
+    /* ── Tables ─────────────────────────────────────────── */
+    .tbl-wrap { overflow-x: auto; max-height: 68vh; overflow-y: auto; }
+    .res-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .res-table thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: #f3f5f9; padding: 7px 10px;
+      white-space: nowrap; cursor: pointer;
+      border-bottom: 2px solid #c8cdd8; user-select: none;
+    }
+    .res-table thead th:hover { background: #e4e8f0; }
+    .res-table tbody tr:hover { background: #f0f4ff !important; }
+    .res-table td { padding: 6px 10px; border-bottom: 1px solid #e8eaf0; vertical-align: middle; }
+
+    /* row colouring */
+    .tr-1   { background: #fffde7; }
+    .tr-2   { background: #fafafa; }
+    .tr-3   { background: #fff8f2; }
+    .tr-dsq { background: #fff5f5; color: #c0392b; }
+    .tr-detail { background: #f7f8fc; }
+
+    /* hf monospace */
+    .hf { font-family: 'Courier New', monospace; font-weight: 600; }
+
+    /* pct bar */
+    .pct-wrap { display: flex; align-items: center; gap: 6px; }
+    .pct-bar  { flex-shrink: 0; width: 50px; height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; }
+    .pct-fill { height: 100%; background: #1a5fb4; border-radius: 3px; }
+
+    /* Stage detail sub-row */
+    .stage-sub { font-size: .82rem; }
+    .stage-sub table { margin: 0; }
+    .stage-sub td, .stage-sub th { padding: 3px 8px !important; }
+
+    /* stage selector */
+    .stage-btns { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #dee2e6; }
+    .stage-btns .sbtn {
+      padding: 4px 12px; border-radius: 20px; border: 1.5px solid #4e8de8;
+      background: #fff; color: #1a5fb4; cursor: pointer; font-size: .83rem; font-weight: 500;
+      transition: background .15s, color .15s;
+    }
+    .stage-btns .sbtn.active, .stage-btns .sbtn:hover { background: #1a5fb4; color: #fff; }
+
+    /* pill badges */
+    .badge-div, .badge-cat { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: .75rem; font-weight: 600; color: #fff; white-space: nowrap; }
+
+    /* score zone cols */
+    .miss    { color: #c0392b; font-weight: 700; }
+    .proc    { color: #e67e22; font-weight: 700; }
+    .alpha   { color: #1e8449; font-weight: 700; }
+    .charlie { color: #b7950b; font-weight: 600; }
+    .delta   { color: #c0392b; }
+
+    /* row expand cursor */
+    .expandable { cursor: pointer; }
+
+    /* Spinner overlay */
+    #section-loading { min-height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════ UPLOAD ══════════════════════════════════ -->
+<div id="sec-upload" class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="text-center mb-5">
+        <div style="font-size:3.5rem">🏆</div>
+        <h1 class="fw-bold mt-2 mb-1">WinMSS Wyniki</h1>
+        <p class="text-muted">Przeglądarka wyników zawodów IPSC / strzeleckich</p>
+      </div>
+
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-inp').click()">
+        <i class="bi bi-cloud-upload" style="font-size:3rem;color:#4e8de8"></i>
+        <h5 class="mt-3 mb-1">Wgraj plik <code>WinMSS.cab</code></h5>
+        <p class="text-muted mb-0 small">Kliknij lub przeciągnij plik tutaj</p>
+      </div>
+      <input type="file" id="file-inp" accept=".cab" style="display:none">
+
+      <div class="text-center mt-3">
+        <span class="text-muted small">lub</span>
+        <button class="btn btn-outline-secondary btn-sm ms-2" id="btn-local" onclick="analyzeLocal()">
+          <i class="bi bi-folder2-open"></i> Wczytaj WinMSS.cab z bieżącego katalogu
+        </button>
+      </div>
+      <div id="upload-err" class="alert alert-danger mt-4 d-none small"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════ LOADING ═════════════════════════════════ -->
+<div id="sec-loading" class="d-none">
+  <div class="spinner-border text-primary" style="width:3.5rem;height:3.5rem"></div>
+  <p class="text-muted mt-3 fs-5">Przetwarzanie pliku…</p>
+</div>
+
+<!-- ══════════════════════════════════ RESULTS ═════════════════════════════════ -->
+<div id="sec-results" class="d-none">
+
+  <!-- Match header -->
+  <div class="match-header d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+      <h2 id="r-name"></h2>
+      <div class="match-meta">
+        <span><i class="bi bi-calendar3"></i> <span id="r-date"></span></span>
+        <span><i class="bi bi-trophy"></i> Poziom&nbsp;L<span id="r-level"></span></span>
+        <span><i class="bi bi-list-ol"></i> <span id="r-stages"></span>&nbsp;torów</span>
+        <span><i class="bi bi-people"></i> <span id="r-comps"></span>&nbsp;zawodników</span>
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm btn-light" onclick="downloadCSV()"><i class="bi bi-download"></i> CSV</button>
+      <button class="btn btn-sm btn-outline-light" onclick="resetUI()"><i class="bi bi-arrow-left"></i> Wróć</button>
+    </div>
+  </div>
+
+  <!-- Podium + stats cards -->
+  <div class="container-fluid px-3 py-3">
+    <div class="row g-3 mb-3" id="podium-row"></div>
+
+    <!-- Filter bar -->
+    <div class="card shadow-sm mb-0 rounded-bottom-0">
+      <div class="filter-bar px-3 py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-4">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+              <input type="text" class="form-control" id="f-search" placeholder="Szukaj zawodnika…" oninput="applyFilters()">
+            </div>
+          </div>
+          <div class="col-md-3">
+            <select class="form-select form-select-sm" id="f-div" onchange="applyFilters()">
+              <option value="">Wszystkie dywizje</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <select class="form-select form-select-sm" id="f-cat" onchange="applyFilters()">
+              <option value="">Wszystkie kategorie</option>
+            </select>
+          </div>
+          <div class="col-md-2 text-muted small text-end" id="f-count"></div>
+        </div>
+      </div>
+
+      <!-- Tab strip -->
+      <div class="tab-strip d-flex px-2">
+        <button class="tab-btn active" id="tbtn-overall"    onclick="switchTab('overall')">   <i class="bi bi-list-ol"></i>    Zestawienie ogólne</button>
+        <button class="tab-btn"        id="tbtn-divisions"  onclick="switchTab('divisions')"> <i class="bi bi-grid-3x3-gap"></i> Dywizje</button>
+        <button class="tab-btn"        id="tbtn-stages"     onclick="switchTab('stages')">    <i class="bi bi-bar-chart-steps"></i> Tory</button>
+      </div>
+
+      <!-- ── Overall ─────────────────────────────────────────── -->
+      <div id="tab-overall">
+        <div class="tbl-wrap">
+          <table class="res-table">
+            <thead><tr id="overall-head"></tr></thead>
+            <tbody id="overall-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Divisions ──────────────────────────────────────── -->
+      <div id="tab-divisions" class="d-none p-3">
+        <div id="div-content"></div>
+      </div>
+
+      <!-- ── Stages ─────────────────────────────────────────── -->
+      <div id="tab-stages" class="d-none">
+        <div class="stage-btns" id="stage-btns"></div>
+        <div class="tbl-wrap">
+          <table class="res-table">
+            <thead><tr id="stage-head"></tr></thead>
+            <tbody id="stage-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /card -->
+  </div><!-- /container -->
+</div><!-- /sec-results -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════════════════════ */
+const G = {
+  data:     null,
+  sort:     { col: 'rank', dir: 'asc' },
+  tab:      'overall',
+  stageIdx: 0,
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UPLOAD / SECTION VISIBILITY
+═══════════════════════════════════════════════════════════════════════════ */
+const $upload  = document.getElementById('sec-upload');
+const $loading = document.getElementById('sec-loading');
+const $results = document.getElementById('sec-results');
+
+function show(which) {
+  [$upload, $loading, $results].forEach(el => el.classList.add('d-none'));
+  which.classList.remove('d-none');
+}
+
+document.getElementById('upload-zone').addEventListener('dragover', e => {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+});
+document.getElementById('upload-zone').addEventListener('dragleave', e => e.currentTarget.classList.remove('drag-over'));
+document.getElementById('upload-zone').addEventListener('drop', e => {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) processFile(f);
+});
+document.getElementById('file-inp').addEventListener('change', e => {
+  if (e.target.files[0]) processFile(e.target.files[0]);
+});
+
+function processFile(file) {
+  if (!file.name.toLowerCase().endsWith('.cab')) { uploadErr('Plik musi mieć rozszerzenie .cab'); return; }
+  show($loading);
+  const fd = new FormData();
+  fd.append('file', file);
+  fetch('/api/analyze', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(d => { if (d.error) throw new Error(d.error); initResults(d); })
+    .catch(e => { show($upload); uploadErr(e.message); });
+}
+
+function analyzeLocal() {
+  show($loading);
+  fetch('/api/analyze-local')
+    .then(r => r.json())
+    .then(d => { if (d.error) throw new Error(d.error); initResults(d); })
+    .catch(e => { show($upload); uploadErr(e.message); });
+}
+
+function uploadErr(msg) {
+  const el = document.getElementById('upload-err');
+  el.textContent = 'Błąd: ' + msg;
+  el.classList.remove('d-none');
+}
+
+function resetUI() {
+  G.data = null;
+  document.getElementById('upload-err').classList.add('d-none');
+  document.getElementById('file-inp').value = '';
+  // clear dynamic division/cat filter options
+  ['f-div','f-cat'].forEach(id => {
+    const sel = document.getElementById(id);
+    while (sel.options.length > 1) sel.remove(1);
+  });
+  show($upload);
+}
+
+// Auto-detect local file on load
+fetch('/api/check-local').then(r => r.json()).then(d => {
+  const btn = document.getElementById('btn-local');
+  if (d.exists) {
+    btn.classList.replace('btn-outline-secondary', 'btn-primary');
+    btn.innerHTML = '<i class="bi bi-folder2-open"></i> Wczytaj WinMSS.cab z bieżącego katalogu <span class="badge bg-success ms-1">znaleziono</span>';
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INIT RESULTS
+═══════════════════════════════════════════════════════════════════════════ */
+function initResults(data) {
+  G.data    = data;
+  G.sort    = { col: 'rank', dir: 'asc' };
+  G.stageIdx = 0;
+
+  // Header
+  document.getElementById('r-name').textContent   = data.match.name;
+  document.getElementById('r-date').textContent   = data.match.date;
+  document.getElementById('r-level').textContent  = data.match.level;
+  document.getElementById('r-stages').textContent = data.stages.length;
+  document.getElementById('r-comps').textContent  = data.competitors.length;
+  document.title = data.match.name + ' — WinMSS';
+
+  // Podium
+  renderPodium(data);
+
+  // Division filter
+  const fdiv = document.getElementById('f-div');
+  [...new Set(data.competitors.map(c => c.division))].sort().forEach(div => {
+    const opt = document.createElement('option');
+    opt.value = opt.textContent = div;
+    fdiv.appendChild(opt);
+  });
+
+  // Category filter
+  const fcat = document.getElementById('f-cat');
+  const cats = [...new Set(data.competitors.map(c => c.category).filter(Boolean))].sort();
+  cats.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = opt.textContent = cat;
+    fcat.appendChild(opt);
+  });
+
+  // Stage buttons
+  const sb = document.getElementById('stage-btns');
+  sb.innerHTML = data.stages.map((s, i) =>
+    `<button class="sbtn${i === 0 ? ' active' : ''}" onclick="selectStage(${i},this)">${esc(s.name)}<small class="ms-1 opacity-60">/${s.max_points}</small></button>`
+  ).join('');
+
+  G.tab = 'overall';
+  highlightTab('overall');
+  applyFilters();
+  show($results);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PODIUM CARDS
+═══════════════════════════════════════════════════════════════════════════ */
+function renderPodium(data) {
+  const icons = ['🥇','🥈','🥉'];
+  const css   = ['p1','p2','p3'];
+  const active = data.competitors.filter(c => !c.is_disq);
+  const top3   = [1,2,3].map(r => active.find(c => c.rank === r)).filter(Boolean);
+
+  const dsqCount  = data.competitors.filter(c => c.is_disq).length;
+  const divCounts = {};
+  data.competitors.forEach(c => { divCounts[c.division] = (divCounts[c.division]||0)+1; });
+  const divSummary = Object.entries(divCounts)
+    .sort((a,b) => b[1]-a[1])
+    .map(([d,n]) => `<span class="me-1">${divBadge(d)} ${n}</span>`).join('');
+
+  let html = top3.map((c, i) => `
+    <div class="col-md-4">
+      <div class="card shadow-sm h-100 podium-card ${css[i]}">
+        <div class="card-body text-center">
+          <div class="podium-emoji">${icons[i]}</div>
+          <div class="fw-bold fs-6 mt-1">${esc(c.name)}</div>
+          <div class="mb-2">${divBadge(c.division)} ${catBadge(c.category)}</div>
+          <div class="row text-center g-0">
+            <div class="col-4"><div class="text-muted" style="font-size:.72rem">HF</div><div class="hf">${c.overall_hf.toFixed(4)}</div></div>
+            <div class="col-4"><div class="text-muted" style="font-size:.72rem">Pkt</div><div class="fw-bold">${c.total_points}</div></div>
+            <div class="col-4"><div class="text-muted" style="font-size:.72rem">Czas</div><div class="fw-bold">${c.total_time.toFixed(2)}s</div></div>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // Summary stat card
+  html += `
+    <div class="col-md-12 col-lg-12">
+      <div class="card shadow-sm">
+        <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-4">
+          <div><span class="text-muted small">Zawodnicy</span><br><span class="stat-num">${data.competitors.length}</span></div>
+          <div><span class="text-muted small">Tory</span><br><span class="stat-num">${data.stages.length}</span></div>
+          ${dsqCount ? `<div><span class="text-muted small">DSQ</span><br><span class="stat-num text-danger">${dsqCount}</span></div>` : ''}
+          <div class="ms-auto">${divSummary}</div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('podium-row').innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FILTERS & SORT
+═══════════════════════════════════════════════════════════════════════════ */
+function getFiltered() {
+  const s   = document.getElementById('f-search').value.toLowerCase();
+  const div = document.getElementById('f-div').value;
+  const cat = document.getElementById('f-cat').value;
+  return G.data.competitors.filter(c =>
+    (!s   || c.name.toLowerCase().includes(s)) &&
+    (!div || c.division === div) &&
+    (!cat || c.category === cat)
+  );
+}
+
+function applyFilters() {
+  if (!G.data) return;
+  const filtered = getFiltered();
+  document.getElementById('f-count').textContent =
+    filtered.length === G.data.competitors.length
+      ? `${filtered.length} zawodników`
+      : `${filtered.length} / ${G.data.competitors.length}`;
+
+  if (G.tab === 'overall')   renderOverall(filtered);
+  if (G.tab === 'divisions') renderDivisions(filtered);
+  if (G.tab === 'stages')    renderStage(G.stageIdx, filtered);
+}
+
+function doSort(col) {
+  if (G.sort.col === col) {
+    G.sort.dir = G.sort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    G.sort.col = col;
+    G.sort.dir = (col === 'rank' || col === 'comp_id') ? 'asc' : 'desc';
+  }
+  applyFilters();
+}
+
+function sorted(list) {
+  const { col, dir } = G.sort;
+  const sign = dir === 'asc' ? 1 : -1;
+  return [...list].sort((a, b) => {
+    if (a.is_disq && !b.is_disq) return 1;
+    if (!a.is_disq && b.is_disq) return -1;
+    let va = a[col], vb = b[col];
+    if (col === 'name') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+    if (col === 'rank') {
+      va = a.is_disq ? 99999 : (typeof va === 'number' ? va : 99999);
+      vb = b.is_disq ? 99999 : (typeof vb === 'number' ? vb : 99999);
+    }
+    return va < vb ? -sign : va > vb ? sign : 0;
+  });
+}
+
+function sortArrow(col) {
+  if (G.sort.col !== col)     return '<i class="bi bi-arrow-down-up text-muted opacity-25 ms-1 small"></i>';
+  return G.sort.dir === 'asc' ? '<i class="bi bi-arrow-up text-primary ms-1 small"></i>'
+                               : '<i class="bi bi-arrow-down text-primary ms-1 small"></i>';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OVERALL TABLE
+═══════════════════════════════════════════════════════════════════════════ */
+const COLS = [
+  { key:'rank',         label:'#',           title:'Miejsce ogólne' },
+  { key:'comp_id',      label:'Nr',          title:'Numer startowy' },
+  { key:'name',         label:'Zawodnik',    title:'Nazwisko i imię' },
+  { key:'division',     label:'Dywizja',     title:'Dywizja' },
+  { key:'category',     label:'Kat.',        title:'Kategoria' },
+  { key:'total_points', label:'Pkt',         title:'Punkty łącznie' },
+  { key:'total_time',   label:'Czas',        title:'Łączny czas [s]' },
+  { key:'overall_hf',   label:'HF Overall',  title:'Hit Factor Overall' },
+  { key:'pct',          label:'% lidera',    title:'Procent do lidera' },
+];
+
+function renderOverall(list) {
+  const data = sorted(list);
+
+  // Head
+  document.getElementById('overall-head').innerHTML = COLS.map(c =>
+    `<th onclick="doSort('${c.key}')" title="${c.title}">${c.label}${sortArrow(c.key)}</th>`
+  ).join('') + '<th title="Rozwiń szczegóły torów"><i class="bi bi-chevron-down"></i></th>';
+
+  // Body
+  document.getElementById('overall-body').innerHTML = data.map(c => {
+    const rc  = c.is_disq ? 'tr-dsq' : c.rank===1 ? 'tr-1' : c.rank===2 ? 'tr-2' : c.rank===3 ? 'tr-3' : '';
+    const rnk = c.is_disq ? '<span class="badge bg-danger">DSQ</span>' : rankEmoji(c.rank);
+    const pct = c.is_disq ? '-' : `<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${c.pct}%"></div></div><span>${c.pct.toFixed(1)}%</span></div>`;
+    const hf  = c.is_disq ? '-' : `<span class="hf">${c.overall_hf.toFixed(4)}</span>`;
+    const fem = c.female   ? ' <i class="bi bi-gender-female text-danger" title="Kobieta"></i>' : '';
+    return `<tr class="${rc} expandable" data-uid="${c.comp_id}" onclick="toggleDetail(this,${c.comp_id})">
+      <td>${rnk}</td>
+      <td class="text-muted">${c.comp_id}</td>
+      <td>${esc(c.name)}${fem}</td>
+      <td>${divBadge(c.division)}</td>
+      <td>${catBadge(c.category)}</td>
+      <td>${c.is_disq ? '-' : c.total_points}</td>
+      <td>${c.is_disq ? '-' : c.total_time.toFixed(2)+'s'}</td>
+      <td>${hf}</td>
+      <td>${pct}</td>
+      <td class="text-muted text-center"><i class="bi bi-chevron-down small"></i></td>
+    </tr>`;
+  }).join('');
+}
+
+/* Stage-detail sub-row (click to expand) */
+function toggleDetail(row, compId) {
+  const next = row.nextElementSibling;
+  if (next && next.classList.contains('tr-detail')) { next.remove(); return; }
+
+  const c = G.data.competitors.find(x => x.comp_id === compId);
+  if (!c) return;
+
+  const stageRows = G.data.stages.map((s, i) => {
+    const sc = c.stage_scores[i];
+    if (!sc)       return `<tr><td>${esc(s.name)}</td><td colspan="11" class="text-muted">–</td></tr>`;
+    if (sc.disq)   return `<tr class="table-danger"><td>${esc(s.name)}</td><td colspan="11">DSQ</td></tr>`;
+    const stgBest = getStageMaxHF(i, c.division);
+    const stgPct  = stgBest > 0 ? (sc.hf / stgBest * 100).toFixed(1) : '–';
+    return `<tr>
+      <td>${esc(s.name)}</td>
+      <td class="alpha">${sc.A}</td><td class="charlie">${sc.B}</td>
+      <td class="charlie">${sc.C}</td><td class="delta">${sc.D}</td>
+      <td class="${sc.M  > 0 ? 'miss':''}">${sc.M}</td>
+      <td class="${sc.PE > 0 ? 'proc':''}">${sc.PE}</td>
+      <td>${sc.pts}</td><td>${sc.time.toFixed(2)}s</td>
+      <td class="hf">${sc.hf.toFixed(4)}</td>
+      <td>${stgPct}%</td>
+    </tr>`;
+  }).join('');
+
+  const detail = document.createElement('tr');
+  detail.className = 'tr-detail stage-sub';
+  detail.innerHTML = `<td colspan="${COLS.length + 1}">
+    <div style="padding:8px 12px">
+      <table class="table table-sm table-bordered mb-0" style="font-size:.8rem">
+        <thead class="table-light"><tr>
+          <th>Tor</th><th>A</th><th>B</th><th>C</th><th>D</th>
+          <th>M</th><th>PE</th><th>Pkt</th><th>Czas</th><th>HF</th><th>% w dyw.</th>
+        </tr></thead>
+        <tbody>${stageRows}</tbody>
+      </table>
+    </div>
+  </td>`;
+  row.insertAdjacentElement('afterend', detail);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIVISIONS TAB
+═══════════════════════════════════════════════════════════════════════════ */
+function renderDivisions(list) {
+  const byDiv = {};
+  list.forEach(c => { (byDiv[c.division] = byDiv[c.division]||[]).push(c); });
+
+  let html = '';
+  for (const div of Object.keys(byDiv).sort()) {
+    const comps  = byDiv[div];
+    const active = comps.filter(c => !c.is_disq).sort((a,b) => b.overall_hf - a.overall_hf);
+    const disq   = comps.filter(c => c.is_disq);
+    const bestHF = active[0]?.overall_hf || 0;
+
+    html += `<div class="mb-4">
+      <div class="d-flex align-items-center gap-2 px-1 py-2 border-bottom">
+        ${divBadge(div, 'lg')}
+        <span class="fw-semibold">${esc(div)}</span>
+        <span class="badge bg-secondary">${comps.length}</span>
+      </div>
+      <div class="table-responsive">
+      <table class="res-table">
+        <thead><tr>
+          <th>#&nbsp;Dyw.</th><th>#&nbsp;Og.</th><th>Zawodnik</th><th>Kat.</th>
+          <th>Pkt</th><th>Czas</th><th>HF</th><th>%&nbsp;lidera</th><th>%&nbsp;w&nbsp;dyw.</th>
+        </tr></thead>
+        <tbody>`;
+
+    active.forEach((c, i) => {
+      const divPct = bestHF > 0 ? (c.overall_hf / bestHF * 100).toFixed(2) : '–';
+      const rc = i===0?'tr-1':i===1?'tr-2':i===2?'tr-3':'';
+      html += `<tr class="${rc}">
+        <td>${rankEmoji(i+1)}</td>
+        <td class="text-muted">${c.rank}</td>
+        <td>${esc(c.name)}${c.female?' <i class="bi bi-gender-female text-danger"></i>':''}</td>
+        <td>${catBadge(c.category)}</td>
+        <td>${c.total_points}</td>
+        <td>${c.total_time.toFixed(2)}s</td>
+        <td><span class="hf">${c.overall_hf.toFixed(4)}</span></td>
+        <td><div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${c.pct}%"></div></div>${c.pct.toFixed(1)}%</div></td>
+        <td><div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${divPct}%"></div></div>${divPct}%</div></td>
+      </tr>`;
+    });
+    disq.forEach(c => {
+      html += `<tr class="tr-dsq"><td><span class="badge bg-danger">DSQ</span></td>
+        <td>DSQ</td><td>${esc(c.name)}</td><td>${catBadge(c.category)}</td>
+        <td colspan="5" class="text-danger fst-italic">Dyskwalifikowany</td></tr>`;
+    });
+
+    html += `</tbody></table></div></div>`;
+  }
+
+  document.getElementById('div-content').innerHTML = html || '<p class="text-muted p-3">Brak wyników dla wybranych filtrów.</p>';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STAGES TAB
+═══════════════════════════════════════════════════════════════════════════ */
+function selectStage(idx, btn) {
+  document.querySelectorAll('.sbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderStage(idx, getFiltered());
+}
+
+function renderStage(idx, filtered) {
+  G.stageIdx = idx;
+  if (!G.data) return;
+  const stage  = G.data.stages[idx];
+  const list   = filtered || getFiltered();
+
+  const pairs = list
+    .map(c => ({ c, sc: c.stage_scores[idx] }))
+    .filter(x => x.sc !== null && x.sc !== undefined);
+
+  const active = pairs.filter(x => !x.sc.disq).sort((a,b) => b.sc.hf - a.sc.hf);
+  const disq   = pairs.filter(x => x.sc.disq);
+
+  document.getElementById('stage-head').innerHTML = `
+    <th>#&nbsp;Tor</th><th>#&nbsp;Og.</th><th>Zawodnik</th><th>Dywizja</th><th>Kat.</th>
+    <th title="Alpha/Popper">A</th><th title="Beta">B</th><th title="Charlie">C</th><th title="Delta">D</th>
+    <th title="Chybień">M</th><th title="Procedural Errors">PE</th>
+    <th>Pkt</th><th>Czas</th><th>HF</th><th>%&nbsp;w&nbsp;dyw.</th>`;
+
+  let rows = active.map((x, i) => {
+    const { c, sc } = x;
+    const divBestHF = getStageMaxHF(idx, c.division);
+    const pct = divBestHF > 0 ? (sc.hf / divBestHF * 100).toFixed(2) : '–';
+    const rc  = i===0?'tr-1':i===1?'tr-2':i===2?'tr-3':'';
+    return `<tr class="${rc}">
+      <td>${rankEmoji(i+1)}</td>
+      <td class="text-muted">${typeof c.rank === 'number' ? c.rank : 'DSQ'}</td>
+      <td>${esc(c.name)}${c.female?' <i class="bi bi-gender-female text-danger"></i>':''}</td>
+      <td>${divBadge(c.division)}</td>
+      <td>${catBadge(c.category)}</td>
+      <td class="${sc.A>0?'alpha':''}">${sc.A}</td>
+      <td class="${sc.B>0?'charlie':''}">${sc.B}</td>
+      <td class="${sc.C>0?'charlie':''}">${sc.C}</td>
+      <td class="${sc.D>0?'delta':''}">${sc.D}</td>
+      <td class="${sc.M>0?'miss':''}">${sc.M}</td>
+      <td class="${sc.PE>0?'proc':''}">${sc.PE}</td>
+      <td>${sc.pts}</td>
+      <td>${sc.time.toFixed(2)}s</td>
+      <td><span class="hf">${sc.hf.toFixed(4)}</span></td>
+      <td><div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${pct}%"></div></div>${pct}%</div></td>
+    </tr>`;
+  }).join('');
+
+  rows += disq.map(x => {
+    const { c } = x;
+    return `<tr class="tr-dsq">
+      <td><span class="badge bg-danger">DSQ</span></td>
+      <td>${typeof c.rank === 'number' ? c.rank : 'DSQ'}</td>
+      <td>${esc(c.name)}</td>
+      <td>${divBadge(c.division)}</td><td>${catBadge(c.category)}</td>
+      <td colspan="10" class="text-danger fst-italic">Dyskwalifikowany</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('stage-body').innerHTML = rows;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAB SWITCHING
+═══════════════════════════════════════════════════════════════════════════ */
+function switchTab(tab) {
+  G.tab = tab;
+  highlightTab(tab);
+  const ids = ['overall','divisions','stages'];
+  ids.forEach(id => {
+    const el = document.getElementById('tab-' + id);
+    el.classList.toggle('d-none', id !== tab);
+  });
+  applyFilters();
+}
+
+function highlightTab(tab) {
+  ['overall','divisions','stages'].forEach(id => {
+    document.getElementById('tbtn-' + id).classList.toggle('active', id === tab);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CSV EXPORT (client-side)
+═══════════════════════════════════════════════════════════════════════════ */
+function downloadCSV() {
+  if (!G.data) return;
+  const { stages, competitors } = G.data;
+  const sn = stages.map(s => s.name);
+
+  const head = [
+    'Miejsce','Nr','Zawodnik','Dywizja','Kategoria','Płeć','Eskwadra',
+    ...sn.flatMap(n => [`${n} Pkt`,`${n} Czas`,`${n} HF`]),
+    'Pkt łącznie','Czas łącznie','HF Overall','% lidera'
+  ];
+
+  const rows = competitors.map(c => [
+    c.is_disq ? 'DSQ' : c.rank,
+    c.comp_id, c.name, c.division, c.category,
+    c.female ? 'K' : 'M', c.squad,
+    ...c.stage_scores.flatMap(sc =>
+      sc == null        ? ['','','']
+      : sc.disq         ? ['DSQ','','DSQ']
+      : [sc.pts, sc.time.toFixed(2), sc.hf.toFixed(4)]
+    ),
+    c.is_disq ? 'DSQ' : c.total_points,
+    c.is_disq ? '' : c.total_time.toFixed(2),
+    c.is_disq ? 'DSQ' : c.overall_hf.toFixed(4),
+    c.is_disq ? 'DSQ' : c.pct.toFixed(2) + '%',
+  ]);
+
+  const csv = [head, ...rows]
+    .map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(','))
+    .join('\r\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (G.data.match.name.replace(/[^\w\s-]/g,'').trim() || 'wyniki') + '.csv';
+  a.click();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════════════════════════════════ */
+function getStageMaxHF(stageIdx, division) {
+  const mhf = G.data.stages[stageIdx].max_hf_by_div;
+  return (mhf && mhf[division]) || 0;
+}
+
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const DIV_BG = {
+  'Open':            '#c0392b',
+  'Standard':        '#1a5276',
+  'Standard Manual': '#6c3483',
+  'Modified':        '#1e8449',
+};
+function divBadge(div, size) {
+  const bg = DIV_BG[div] || '#555';
+  const fs = size === 'lg' ? 'font-size:.85rem;padding:4px 12px' : 'font-size:.74rem';
+  return `<span class="badge-div" style="background:${bg};${fs}">${esc(div)}</span>`;
+}
+
+const CAT_BG = {
+  'Lady':        '#b03a8c',
+  'Senior':      '#c87b20',
+  'Super Senior':'#6c757d',
+  'Junior':      '#0a7a8e',
+  'Super Junior':'#20a070',
+};
+function catBadge(cat) {
+  const bg = CAT_BG[cat];
+  if (!bg) return '';
+  return `<span class="badge-cat" style="background:${bg}">${esc(cat)}</span>`;
+}
+
+function rankEmoji(r) {
+  if (r === 1) return '🥇&nbsp;<strong>1</strong>';
+  if (r === 2) return '🥈&nbsp;<strong>2</strong>';
+  if (r === 3) return '🥉&nbsp;<strong>3</strong>';
+  return r;
+}
+</script>
+</body>
+</html>
