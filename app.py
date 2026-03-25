@@ -7,18 +7,38 @@ Otwórz:   http://localhost:5000
 """
 
 from __future__ import annotations
+import hashlib
+import hmac
 import os
+import secrets
 import tempfile
 import threading
 import webbrowser
-from flask import Flask, render_template, request, jsonify
+from functools import wraps
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 
 from winmss_results import (
     load_data, build_results, rank_competitors, add_percent_of_best
 )
+from database import init_db, save_match, list_matches, get_match, delete_match, add_user, verify_user, list_users, delete_user, change_password
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+
+init_db()
+
+
+def admin_required(f):
+    """Decorator: wymaga zalogowania do panelu admina."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("admin"):
+            if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"error": "Wymagane zalogowanie"}), 401
+            return redirect(url_for("admin_login"))
+        return f(*args, **kwargs)
+    return decorated
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +138,8 @@ def analyze():
         f.save(tmp.name)
         tmp.close()
         result = _prepare(tmp.name)
+        match_id = save_match(result)
+        result["match"]["id"] = match_id
         return jsonify(result)
     except Exception as exc:
         return jsonify({"error": f"Błąd przetwarzania: {exc}"}), 500
@@ -132,7 +154,10 @@ def analyze_local():
     if not os.path.exists(path):
         return jsonify({"error": "Plik WinMSS.cab nie znaleziony w bieżącym katalogu"}), 404
     try:
-        return jsonify(_prepare(path))
+        result = _prepare(path)
+        match_id = save_match(result)
+        result["match"]["id"] = match_id
+        return jsonify(result)
     except Exception as exc:
         return jsonify({"error": f"Błąd przetwarzania: {exc}"}), 500
 
@@ -141,6 +166,154 @@ def analyze_local():
 def check_local():
     exists = os.path.exists(os.path.join(os.getcwd(), "WinMSS.cab"))
     return jsonify({"exists": exists})
+
+
+@app.route("/api/matches")
+def api_list_matches():
+    """Zwraca listę zapisanych zawodów."""
+    return jsonify(list_matches())
+
+
+@app.route("/api/matches/<int:match_id>")
+def api_get_match(match_id):
+    """Zwraca dane zapisanych zawodów."""
+    result = get_match(match_id)
+    if result is None:
+        return jsonify({"error": "Nie znaleziono zawodów"}), 404
+    result["match"]["id"] = match_id
+    return jsonify(result)
+
+
+@app.route("/api/matches/<int:match_id>", methods=["DELETE"])
+@admin_required
+def api_delete_match(match_id):
+    """Usuwa zapisane zawody."""
+    if delete_match(match_id):
+        return jsonify({"ok": True})
+    return jsonify({"error": "Nie znaleziono zawodów"}), 404
+
+
+# ---------------------------------------------------------------------------
+# Admin panel
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        user = request.form.get("username", "")
+        pwd  = request.form.get("password", "")
+        pwd_hash = hashlib.sha256(pwd.encode()).hexdigest()
+        if verify_user(user, pwd_hash):
+            session["admin"] = True
+            session["username"] = user
+            return redirect(url_for("admin_panel"))
+        return render_template("admin_login.html", error="Nieprawidłowy login lub hasło")
+    return render_template("admin_login.html", error=None)
+
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("admin", None)
+    session.pop("username", None)
+    return redirect(url_for("admin_login"))
+
+
+@app.route("/admin")
+@admin_required
+def admin_panel():
+    matches = list_matches()
+    users = list_users()
+    return render_template("admin.html", matches=matches, users=users)
+
+
+@app.route("/admin/upload", methods=["POST"])
+@admin_required
+def admin_upload():
+    """Upload .cab z panelu admina."""
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return redirect(url_for("admin_panel"))
+    if not f.filename.lower().endswith(".cab"):
+        return redirect(url_for("admin_panel"))
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".cab", delete=False)
+    try:
+        f.save(tmp.name)
+        tmp.close()
+        result = _prepare(tmp.name)
+        save_match(result)
+    finally:
+        os.unlink(tmp.name)
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/delete/<int:match_id>", methods=["POST"])
+@admin_required
+def admin_delete(match_id):
+    delete_match(match_id)
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/users", methods=["GET"])
+@admin_required
+def admin_users_list():
+    """List all users (API)."""
+    return jsonify(list_users())
+
+
+@app.route("/admin/users", methods=["POST"])
+@admin_required
+def admin_create_user():
+    """Create a new user."""
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "").strip()
+    
+    if not username or not password:
+        return redirect(url_for("admin_panel"))
+    
+    try:
+        pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+        add_user(username, pwd_hash)
+    except Exception:
+        pass  # Username already exists or other error
+    
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/users/<int:user_id>", methods=["POST"])
+@admin_required
+def admin_delete_user(user_id):
+    """Delete a user."""
+    delete_user(user_id)
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/change-password", methods=["POST"])
+@admin_required
+def admin_change_password():
+    """Change password for logged-in user."""
+    username = session.get("username")
+    current_pwd = request.form.get("current_password", "")
+    new_pwd = request.form.get("new_password", "")
+    confirm_pwd = request.form.get("confirm_password", "")
+    
+    # Validate inputs
+    if not current_pwd or not new_pwd or not confirm_pwd:
+        return redirect(url_for("admin_panel") + "?tab=users&error=Puste+pola")
+    
+    if new_pwd != confirm_pwd:
+        return redirect(url_for("admin_panel") + "?tab=users&error=Has%C5%82a+nie+zgadzaj%C4%85+si%C4%99")
+    
+    # Verify current password
+    current_hash = hashlib.sha256(current_pwd.encode()).hexdigest()
+    if not verify_user(username, current_hash):
+        return redirect(url_for("admin_panel") + "?tab=users&error=Nieprawid%C5%82owe+has%C5%82o")
+    
+    # Update password
+    new_hash = hashlib.sha256(new_pwd.encode()).hexdigest()
+    change_password(session.get("username"), new_hash)
+    
+    return redirect(url_for("admin_panel") + "?tab=users&success=Has%C5%82o+zmienione")
 
 
 # ---------------------------------------------------------------------------

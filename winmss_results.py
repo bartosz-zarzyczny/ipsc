@@ -195,8 +195,8 @@ def build_results(data: dict) -> tuple[dict, list, list]:
             pe  = int(sc.get("ProcError",0))
             pen = int(sc.get("Penalties",0))
             t   = float(sc.get("ShootTime", 0) or 0)
-            hf  = float(sc.get("HitFactor", 0) or 0)
             pts = int(sc.get("FinalScore", 0) or 0)
+            hf  = pts / t if t > 0 else 0.0
             stg_disq = sc.get("IsDisq", "False").lower() == "true"
 
             stage_scores.append({
@@ -234,6 +234,31 @@ def build_results(data: dict) -> tuple[dict, list, list]:
             "overall_hf":  overall_hf,
         })
 
+    # --- Przelicz punkty IPSC: pkt = (HF zawodnika / najlepszy HF w torze) × max pkt toru ---
+    n_stages = len(stages)
+    best_hf_per_stage = [0.0] * n_stages
+    for i in range(n_stages):
+        for c in competitors:
+            if i < len(c["stage_scores"]):
+                sc = c["stage_scores"][i]
+                if sc and not sc["disq"] and not c["is_disq"] and sc["hf"] > best_hf_per_stage[i]:
+                    best_hf_per_stage[i] = sc["hf"]
+
+    for c in competitors:
+        total_match_pts = 0.0
+        for i in range(n_stages):
+            if i < len(c["stage_scores"]):
+                sc = c["stage_scores"][i]
+                if sc and not sc["disq"]:
+                    max_pts = int(stages[i].get("MaxPoints", 0))
+                    if best_hf_per_stage[i] > 0:
+                        stage_pts = (sc["hf"] / best_hf_per_stage[i]) * max_pts
+                    else:
+                        stage_pts = 0.0
+                    sc["pts"] = round(stage_pts, 4)
+                    total_match_pts += stage_pts
+        c["total_points"] = round(total_match_pts, 4)
+
     return match_info, stages, competitors
 
 
@@ -245,18 +270,18 @@ def rank_competitors(competitors: list, key: str = "overall") -> list:
     active  = [c for c in competitors if not c["is_disq"]]
     disq    = [c for c in competitors if c["is_disq"]]
 
-    active.sort(key=lambda c: c["overall_hf"], reverse=True)
+    active.sort(key=lambda c: c["total_points"], reverse=True)
     disq.sort(  key=lambda c: c["lastname"])
 
     result = []
-    prev_hf, prev_rank = None, 0
+    prev_pts, prev_rank = None, 0
     for i, c in enumerate(active, 1):
-        if c["overall_hf"] == prev_hf:
+        if c["total_points"] == prev_pts:
             rank = prev_rank
         else:
             rank = i
             prev_rank = i
-        prev_hf = c["overall_hf"]
+        prev_pts = c["total_points"]
         result.append({**c, "rank": rank})
 
     for c in disq:
@@ -270,11 +295,11 @@ def add_percent_of_best(ranked: list) -> list:
     active = [c for c in ranked if not c["is_disq"]]
     if not active:
         return ranked
-    best_hf = max(c["overall_hf"] for c in active)
+    best_pts = max(c["total_points"] for c in active)
     result = []
     for c in ranked:
-        if best_hf > 0 and not c["is_disq"]:
-            pct = c["overall_hf"] / best_hf * 100
+        if best_pts > 0 and not c["is_disq"]:
+            pct = c["total_points"] / best_pts * 100
         else:
             pct = 0.0
         result.append({**c, "pct": pct})

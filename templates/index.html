@@ -15,21 +15,6 @@
     }
     body { background: #eef1f6; font-size: .92rem; }
 
-    /* ── Upload ─────────────────────────────────────────── */
-    .upload-zone {
-      border: 2.5px dashed #4e8de8;
-      border-radius: 18px;
-      padding: 56px 24px;
-      text-align: center;
-      cursor: pointer;
-      background: #fff;
-      transition: background .2s, border-color .2s;
-    }
-    .upload-zone:hover, .upload-zone.drag-over {
-      background: #eaf1fd;
-      border-color: #1a5fb4;
-    }
-
     /* ── Match header ───────────────────────────────────── */
     .match-header {
       background: linear-gradient(120deg, #0d1b2a 0%, #1b3a5c 60%, #1a6b96 100%);
@@ -118,6 +103,15 @@
 
     /* Spinner overlay */
     #section-loading { min-height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+
+    /* Saved matches list */
+    .match-item { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border:1px solid #dee2e6; border-radius:8px; margin-bottom:8px; transition:background .15s; cursor:pointer; }
+    .match-item:hover { background:#f0f4ff; }
+    .match-item .match-info { flex:1; }
+    .match-item .match-info .match-title { font-weight:600; font-size:.95rem; }
+    .match-item .match-info .match-meta-sm { font-size:.78rem; color:#6c757d; }
+    .match-item .btn-del { opacity:.4; transition:opacity .15s; }
+    .match-item .btn-del:hover { opacity:1; }
   </style>
 </head>
 <body>
@@ -132,20 +126,17 @@
         <p class="text-muted">Przeglądarka wyników zawodów IPSC / strzeleckich</p>
       </div>
 
-      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-inp').click()">
-        <i class="bi bi-cloud-upload" style="font-size:3rem;color:#4e8de8"></i>
-        <h5 class="mt-3 mb-1">Wgraj plik <code>WinMSS.cab</code></h5>
-        <p class="text-muted mb-0 small">Kliknij lub przeciągnij plik tutaj</p>
-      </div>
-      <input type="file" id="file-inp" accept=".cab" style="display:none">
-
-      <div class="text-center mt-3">
-        <span class="text-muted small">lub</span>
-        <button class="btn btn-outline-secondary btn-sm ms-2" id="btn-local" onclick="analyzeLocal()">
-          <i class="bi bi-folder2-open"></i> Wczytaj WinMSS.cab z bieżącego katalogu
-        </button>
-      </div>
       <div id="upload-err" class="alert alert-danger mt-4 d-none small"></div>
+
+      <!-- Saved matches -->
+      <div id="saved-matches" class="mt-3 d-none">
+        <h5 class="text-center mb-3"><i class="bi bi-clock-history"></i> Wybierz zawody</h5>
+        <div id="match-list"></div>
+      </div>
+
+      <div id="no-matches" class="text-center text-muted mt-4 d-none">
+        <p>Brak zawodów. Dodaj je w <a href="/admin">panelu admina</a>.</p>
+      </div>
     </div>
   </div>
 </div>
@@ -265,50 +256,58 @@ function show(which) {
   which.classList.remove('d-none');
 }
 
-document.getElementById('upload-zone').addEventListener('dragover', e => {
-  e.preventDefault();
-  e.currentTarget.classList.add('drag-over');
-});
-document.getElementById('upload-zone').addEventListener('dragleave', e => e.currentTarget.classList.remove('drag-over'));
-document.getElementById('upload-zone').addEventListener('drop', e => {
-  e.preventDefault();
-  e.currentTarget.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0];
-  if (f) processFile(f);
-});
-document.getElementById('file-inp').addEventListener('change', e => {
-  if (e.target.files[0]) processFile(e.target.files[0]);
-});
-
-function processFile(file) {
-  if (!file.name.toLowerCase().endsWith('.cab')) { uploadErr('Plik musi mieć rozszerzenie .cab'); return; }
-  show($loading);
-  const fd = new FormData();
-  fd.append('file', file);
-  fetch('/api/analyze', { method: 'POST', body: fd })
-    .then(r => r.json())
-    .then(d => { if (d.error) throw new Error(d.error); initResults(d); })
-    .catch(e => { show($upload); uploadErr(e.message); });
-}
-
-function analyzeLocal() {
-  show($loading);
-  fetch('/api/analyze-local')
-    .then(r => r.json())
-    .then(d => { if (d.error) throw new Error(d.error); initResults(d); })
-    .catch(e => { show($upload); uploadErr(e.message); });
-}
-
 function uploadErr(msg) {
   const el = document.getElementById('upload-err');
   el.textContent = 'Błąd: ' + msg;
   el.classList.remove('d-none');
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SAVED MATCHES
+═══════════════════════════════════════════════════════════════════════════ */
+function loadMatchList() {
+  fetch('/api/matches')
+    .then(r => r.json())
+    .then(matches => {
+      const container = document.getElementById('saved-matches');
+      const noMatches = document.getElementById('no-matches');
+      const list = document.getElementById('match-list');
+      if (!matches.length) {
+        container.classList.add('d-none');
+        noMatches.classList.remove('d-none');
+        return;
+      }
+      noMatches.classList.add('d-none');
+      container.classList.remove('d-none');
+      list.innerHTML = matches.map(m => `
+        <div class="match-item" onclick="loadMatch(${m.id})">
+          <div class="match-info">
+            <div class="match-title">${esc(m.name)}</div>
+            <div class="match-meta-sm">
+              <i class="bi bi-calendar3"></i> ${esc(m.date || '–')}
+              &nbsp;·&nbsp;Poziom L${m.level}
+              &nbsp;·&nbsp;<i class="bi bi-clock"></i> ${esc(m.created_at)}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    });
+}
+
+function loadMatch(id) {
+  show($loading);
+  fetch('/api/matches/' + id)
+    .then(r => r.json())
+    .then(d => { if (d.error) throw new Error(d.error); initResults(d); })
+    .catch(e => { show($upload); uploadErr(e.message); });
+}
+
+// Load match list on page load
+loadMatchList();
+
 function resetUI() {
   G.data = null;
   document.getElementById('upload-err').classList.add('d-none');
-  document.getElementById('file-inp').value = '';
   // clear dynamic division/cat filter options
   ['f-div','f-cat'].forEach(id => {
     const sel = document.getElementById(id);
@@ -316,15 +315,6 @@ function resetUI() {
   });
   show($upload);
 }
-
-// Auto-detect local file on load
-fetch('/api/check-local').then(r => r.json()).then(d => {
-  const btn = document.getElementById('btn-local');
-  if (d.exists) {
-    btn.classList.replace('btn-outline-secondary', 'btn-primary');
-    btn.innerHTML = '<i class="bi bi-folder2-open"></i> Wczytaj WinMSS.cab z bieżącego katalogu <span class="badge bg-success ms-1">znaleziono</span>';
-  }
-});
 
 /* ═══════════════════════════════════════════════════════════════════════════
    INIT RESULTS
@@ -399,7 +389,7 @@ function renderPodium(data) {
           <div class="mb-2">${divBadge(c.division)} ${catBadge(c.category)}</div>
           <div class="row text-center g-0">
             <div class="col-4"><div class="text-muted" style="font-size:.72rem">HF</div><div class="hf">${c.overall_hf.toFixed(4)}</div></div>
-            <div class="col-4"><div class="text-muted" style="font-size:.72rem">Pkt</div><div class="fw-bold">${c.total_points}</div></div>
+            <div class="col-4"><div class="text-muted" style="font-size:.72rem">Pkt</div><div class="fw-bold">${c.is_disq ? 'DSQ' : c.total_points.toFixed(4)}</div></div>
             <div class="col-4"><div class="text-muted" style="font-size:.72rem">Czas</div><div class="fw-bold">${c.total_time.toFixed(2)}s</div></div>
           </div>
         </div>
@@ -499,25 +489,46 @@ const COLS = [
 function renderOverall(list) {
   const data = sorted(list);
 
+  // Czy aktywny jest filtr dywizji?
+  const divFilter = document.getElementById('f-div').value;
+
+  // Najlepsze punkty w aktualnie filtrowanej liście (do obliczenia % lidera)
+  const bestPts = data.filter(c => !c.is_disq).reduce((mx, c) => Math.max(mx, c.total_points), 0);
+
+  // Miejsce w dywizji (obliczane tylko gdy filtr dywizji aktywny)
+  const divRankMap = {};
+  if (divFilter) {
+    const activeSorted = data.filter(c => !c.is_disq).sort((a,b) => b.total_points - a.total_points);
+    activeSorted.forEach((c, i) => { divRankMap[c.comp_id] = i + 1; });
+  }
+
   // Head
-  document.getElementById('overall-head').innerHTML = COLS.map(c =>
+  const colsHtml = COLS.map(c =>
     `<th onclick="doSort('${c.key}')" title="${c.title}">${c.label}${sortArrow(c.key)}</th>`
-  ).join('') + '<th title="Rozwiń szczegóły torów"><i class="bi bi-chevron-down"></i></th>';
+  );
+  if (divFilter) colsHtml.splice(1, 0, '<th title="Miejsce w dywizji">#&nbsp;Dyw.</th>');
+  document.getElementById('overall-head').innerHTML = colsHtml.join('') + '<th title="Rozwiń szczegóły torów"><i class="bi bi-chevron-down"></i></th>';
 
   // Body
   document.getElementById('overall-body').innerHTML = data.map(c => {
     const rc  = c.is_disq ? 'tr-dsq' : c.rank===1 ? 'tr-1' : c.rank===2 ? 'tr-2' : c.rank===3 ? 'tr-3' : '';
     const rnk = c.is_disq ? '<span class="badge bg-danger">DSQ</span>' : rankEmoji(c.rank);
-    const pct = c.is_disq ? '-' : `<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${c.pct}%"></div></div><span>${c.pct.toFixed(1)}%</span></div>`;
+    const localPct = bestPts > 0 ? c.total_points / bestPts * 100 : 0;
+    const pct = c.is_disq ? '-' : `<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${localPct}%"></div></div><span>${localPct.toFixed(1)}%</span></div>`;
     const hf  = c.is_disq ? '-' : `<span class="hf">${c.overall_hf.toFixed(4)}</span>`;
     const fem = c.female   ? ' <i class="bi bi-gender-female text-danger" title="Kobieta"></i>' : '';
+
+    const divRankCell = divFilter
+      ? `<td>${c.is_disq ? '<span class="badge bg-danger">DSQ</span>' : rankEmoji(divRankMap[c.comp_id])}</td>`
+      : '';
     return `<tr class="${rc} expandable" data-uid="${c.comp_id}" onclick="toggleDetail(this,${c.comp_id})">
       <td>${rnk}</td>
+      ${divRankCell}
       <td class="text-muted">${c.comp_id}</td>
       <td>${esc(c.name)}${fem}</td>
       <td>${divBadge(c.division)}</td>
       <td>${catBadge(c.category)}</td>
-      <td>${c.is_disq ? '-' : c.total_points}</td>
+      <td>${c.is_disq ? '-' : c.total_points.toFixed(4)}</td>
       <td>${c.is_disq ? '-' : c.total_time.toFixed(2)+'s'}</td>
       <td>${hf}</td>
       <td>${pct}</td>
@@ -546,7 +557,7 @@ function toggleDetail(row, compId) {
       <td class="charlie">${sc.C}</td><td class="delta">${sc.D}</td>
       <td class="${sc.M  > 0 ? 'miss':''}">${sc.M}</td>
       <td class="${sc.PE > 0 ? 'proc':''}">${sc.PE}</td>
-      <td>${sc.pts}</td><td>${sc.time.toFixed(2)}s</td>
+      <td>${sc.pts.toFixed(4)}</td><td>${sc.time.toFixed(2)}s</td>
       <td class="hf">${sc.hf.toFixed(4)}</td>
       <td>${stgPct}%</td>
     </tr>`;
@@ -554,7 +565,9 @@ function toggleDetail(row, compId) {
 
   const detail = document.createElement('tr');
   detail.className = 'tr-detail stage-sub';
-  detail.innerHTML = `<td colspan="${COLS.length + 1}">
+  const divFilter = document.getElementById('f-div').value;
+  const totalCols = COLS.length + (divFilter ? 1 : 0) + 1;
+  detail.innerHTML = `<td colspan="${totalCols}">
     <div style="padding:8px 12px">
       <table class="table table-sm table-bordered mb-0" style="font-size:.8rem">
         <thead class="table-light"><tr>
@@ -578,9 +591,9 @@ function renderDivisions(list) {
   let html = '';
   for (const div of Object.keys(byDiv).sort()) {
     const comps  = byDiv[div];
-    const active = comps.filter(c => !c.is_disq).sort((a,b) => b.overall_hf - a.overall_hf);
+    const active = comps.filter(c => !c.is_disq).sort((a,b) => b.total_points - a.total_points);
     const disq   = comps.filter(c => c.is_disq);
-    const bestHF = active[0]?.overall_hf || 0;
+    const bestPts = active[0]?.total_points || 0;
 
     html += `<div class="mb-4">
       <div class="d-flex align-items-center gap-2 px-1 py-2 border-bottom">
@@ -597,14 +610,14 @@ function renderDivisions(list) {
         <tbody>`;
 
     active.forEach((c, i) => {
-      const divPct = bestHF > 0 ? (c.overall_hf / bestHF * 100).toFixed(2) : '–';
+      const divPct = bestPts > 0 ? (c.total_points / bestPts * 100).toFixed(2) : '–';
       const rc = i===0?'tr-1':i===1?'tr-2':i===2?'tr-3':'';
       html += `<tr class="${rc}">
         <td>${rankEmoji(i+1)}</td>
         <td class="text-muted">${c.rank}</td>
         <td>${esc(c.name)}${c.female?' <i class="bi bi-gender-female text-danger"></i>':''}</td>
         <td>${catBadge(c.category)}</td>
-        <td>${c.total_points}</td>
+        <td>${c.total_points.toFixed(4)}</td>
         <td>${c.total_time.toFixed(2)}s</td>
         <td><span class="hf">${c.overall_hf.toFixed(4)}</span></td>
         <td><div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${c.pct}%"></div></div>${c.pct.toFixed(1)}%</div></td>
@@ -668,7 +681,7 @@ function renderStage(idx, filtered) {
       <td class="${sc.D>0?'delta':''}">${sc.D}</td>
       <td class="${sc.M>0?'miss':''}">${sc.M}</td>
       <td class="${sc.PE>0?'proc':''}">${sc.PE}</td>
-      <td>${sc.pts}</td>
+      <td>${sc.pts.toFixed(4)}</td>
       <td>${sc.time.toFixed(2)}s</td>
       <td><span class="hf">${sc.hf.toFixed(4)}</span></td>
       <td><div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${pct}%"></div></div>${pct}%</div></td>
@@ -730,9 +743,9 @@ function downloadCSV() {
     ...c.stage_scores.flatMap(sc =>
       sc == null        ? ['','','']
       : sc.disq         ? ['DSQ','','DSQ']
-      : [sc.pts, sc.time.toFixed(2), sc.hf.toFixed(4)]
+      : [sc.pts.toFixed(4), sc.time.toFixed(2), sc.hf.toFixed(4)]
     ),
-    c.is_disq ? 'DSQ' : c.total_points,
+    c.is_disq ? 'DSQ' : c.total_points.toFixed(4),
     c.is_disq ? '' : c.total_time.toFixed(2),
     c.is_disq ? 'DSQ' : c.overall_hf.toFixed(4),
     c.is_disq ? 'DSQ' : c.pct.toFixed(2) + '%',
