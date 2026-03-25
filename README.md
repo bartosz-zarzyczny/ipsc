@@ -25,6 +25,66 @@ Narzędzie do wyciągania i przeglądania wyników zawodów strzeleckich IPSC z 
   brew install cabextract   # macOS
   ```
 
+## Uruchomienie
+
+### Lokalnie (bez Docker)
+
+```bash
+python3 app.py
+# → przeglądarka otworzy się na http://localhost:5000
+```
+
+### W kontenerze Docker
+
+#### Opcja 1: Docker Compose (zalecane)
+
+```bash
+# Budowanie i uruchamianie
+docker-compose up --build
+
+# Następnym razem (bez rebuildu)
+docker-compose up
+
+# W tle
+docker-compose up -d
+
+# Zatrzymanie
+docker-compose down
+```
+
+Aplikacja będzie dostępna na `http://localhost:6000`.
+
+Baza danych (`ipsc.db`) będzie przechowywana w katalogu `./data/` na hoście.
+
+#### Opcja 2: Docker bezpośrednio
+
+```bash
+# Budowanie obrazu
+docker build -t ipsc:latest .
+
+# Uruchamianie kontenera
+docker run -d \
+  --name ipsc-app \
+  -p 6000:5000 \
+  -v $(pwd)/data:/app/data \
+  ipsc:latest
+
+# Zatrzymanie
+docker stop ipsc-app
+docker rm ipsc-app
+```
+
+#### Zmienne środowiskowe
+
+W `docker-compose.yml` można zmienić:
+- **PORT** — zmień `6000:5000` na `3000:5000` aby dostęp był na porcie 3000
+- **SECRET_KEY** — ustaw bezpieczny klucz sesji (domyślnie: `default-secret-key-change-me`)
+
+```bash
+# Przykład z custom secret key
+docker-compose up -e SECRET_KEY="twoj-bezpieczny-klucz"
+```
+
 ## Skrypt CLI (`winmss_results.py`)
 
 Wyciąga dane z pliku `.cab` i wyświetla wyniki w terminalu.
@@ -50,11 +110,6 @@ python3 winmss_results.py inny_mecz.cab --csv wyniki.csv
 ```
 
 ## Interfejs webowy (`app.py`)
-
-```bash
-python3 app.py
-# → przeglądarka otworzy się automatycznie na http://localhost:5000
-```
 
 ### Panel logowania (Admin)
 
