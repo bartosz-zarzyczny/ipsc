@@ -321,9 +321,19 @@ def admin_change_password():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    def _open():
-        webbrowser.open("http://localhost:5050")
-
-    threading.Timer(1.2, _open).start()
-    print("WinMSS Web UI → http://localhost:5050  (Ctrl+C aby zatrzymać)")
-    app.run(debug=False, port=5050)
+    import os
+    
+    # Konfiguracja dla lokalnego uruchamiania vs Docker
+    is_docker = os.path.exists('/.dockerenv')
+    
+    if not is_docker:
+        # Lokalnie - otwórz przeglądarkę
+        def _open():
+            webbrowser.open("http://localhost:5000")
+        threading.Timer(1.2, _open).start()
+        print("WinMSS Web UI → http://localhost:5000  (Ctrl+C aby zatrzymać)")
+    else:
+        # Docker - słuchaj na 0.0.0.0
+        print("WinMSS Web UI running in Docker on 0.0.0.0:5000")
+    
+    app.run(host='0.0.0.0', port=5000, debug=False)
