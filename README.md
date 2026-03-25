@@ -5,11 +5,15 @@ Narzędzie do wyciągania i przeglądania wyników zawodów strzeleckich IPSC z 
 ## Struktura projektu
 
 ```
-├── WinMSS.cab              # Plik z danymi zawodów (WinMSS export)
-├── winmss_results.py       # Skrypt CLI – wyniki w terminalu / eksport CSV
-├── app.py                  # Serwer Flask – przeglądarkowy interfejs UI
+├── WinMSS.cab                    # Plik z danymi zawodów (WinMSS export)
+├── ipsc.db                       # Baza danych SQLite (zawody, użytkownicy)
+├── winmss_results.py             # Skrypt CLI – wyniki w terminalu / eksport CSV
+├── app.py                        # Serwer Flask – przeglądarkowy interfejs UI
+├── database.py                   # Warstwa bazy danych (ORM)
 └── templates/
-    └── index.html          # Frontend (single-page app)
+    ├── index.html                # Frontend (przeglądarka wyników)
+    ├── admin.html                # Panel administracyjny (zawody + użytkownicy)
+    └── admin_login.html          # Formularz logowania
 ```
 
 ## Wymagania
@@ -49,12 +53,22 @@ python3 winmss_results.py inny_mecz.cab --csv wyniki.csv
 
 ```bash
 python3 app.py
-# → przeglądarka otworzy się automatycznie na http://localhost:5050
+# → przeglądarka otworzy się automatycznie na http://localhost:5000
 ```
 
-### Funkcje UI
+### Panel logowania (Admin)
 
-- **Wgrywanie pliku** — drag & drop lub klik; automatyczne wykrywanie `WinMSS.cab` w bieżącym katalogu
+Dostęp do panelu administracyjnego wymaga zalogowania się.
+
+**Konto domyślne:**
+- **Login:** `bartek`
+- **Hasło:** `IP$c2023`
+
+Konta użytkowników przechowywane są w bazie danych SQLite (`ipsc.db`) z zabezpieczeniem SHA-256.
+
+### Główna strona — przeglądarka wyników
+
+- **Wybór zawodów** — lista zapisanych zawodów w bazie; kliknięcie ładuje wyniki
 - **Nagłówek zawodów** — nazwa, data, poziom (L1/L2/L3), liczba torów i zawodników
 - **Podium** — karty top 3 z Hit Factor / punktami / czasem
 - **Zestawienie ogólne** — sortowalna tabela wszystkich zawodników; kliknięcie wiersza rozwija szczegóły torów (A/B/C/D/M/PE, HF, % w dywizji)
@@ -62,6 +76,22 @@ python3 app.py
 - **Zakładka Tory** — ranking na wybranym torze z kolorowanymi kolumnami strzelań; procenty liczone w ramach dywizji
 - **Filtry** — wyszukiwanie po nazwisku, filtr po dywizji, filtr po kategorii (Lady / Senior / Super Senior); filtry działają na wszystkich zakładkach włącznie z torami
 - **Eksport CSV** — generowany po stronie przeglądarki, otwieralny w Excelu (UTF-8 z BOM)
+- **Link do panelu** — przycisk w górnym rogu odsyła do `/admin`
+
+### Panel administracyjny
+
+Dostępny pod `/admin` — wymaga zalogowania.
+
+#### Tab: Zawody
+- **Wgrywanie pliku** — drag & drop lub klik na formularz; automatyczne wykrywanie `WinMSS.cab` w bieżącym katalogu
+- **Lista zawodów** — tabela wszystkich zapisanych zawodów (ID, nazwa, data, poziom)
+- **Usuwanie zawodów** — przyciski do usunięcia pojedynczych zawodów z bazy
+
+#### Tab: Użytkownicy
+- **Zmiana hasła** — formularz do zmiany hasła zalogowanego użytkownika (wymaga starego hasła)
+- **Zarządzanie użytkownikami** — tabela wszystkich użytkowników z labelką "Ty" dla zalogowanego
+  - Tworzenie nowego użytkownika (login + hasło)
+  - Usuwanie użytkownika (zabezpieczenie — ostatného użytkownika nie można usunąć)
 
 ### Dane zawodnika
 
@@ -77,7 +107,83 @@ python3 app.py
 | HF Overall | Hit Factor = punkty / czas |
 | % lidera | Procent do najlepszego HF |
 
-### Mapowanie dywizji (Shotgun)
+## Baza danych (`database.py`)
+
+Aplikacja wykorzystuje SQLite (`ipsc.db`) do przechowywania zawodów i zarządzania użytkownikami.
+
+### Tabela: `matches`
+
+```sql
+CREATE TABLE matches (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    date TEXT,
+    level INTEGER,
+    data_json TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+)
+```
+
+- **id** — unikalny identyfikator zawodów
+- **name** — nazwa zawodów (z THEMATCH.XML)
+- **date** — data (YYYY-MM-DD)
+- **level** — poziom (1-3)
+- **data_json** — pełne dane JSON (ustrukturyzowane wyniki, etapy, zawodnicy)
+- **created_at** — znacznik czasu dodania
+
+### Tabela: `users`
+
+```sql
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+)
+```
+
+- **id** — unikalny identyfikator użytkownika
+- **username** — login (unikatowy)
+- **password_hash** — SHA-256 hash hasła
+- **created_at** — znacznik czasu utworzenia
+
+**Funkcje:**
+- `add_user(username, password_hash)` — tworzy użytkownika
+- `verify_user(username, password_hash)` — weryfikuje hasło (timing-safe comparison)
+- `list_users()` — pobiera listę wszystkich użytkowników
+- `delete_user(user_id)` — usuwa użytkownika (zapobiega usunięciu ostatniego)
+- `change_password(user_id, password_hash)` — zmienia hasło
+
+## API Routes
+
+### Public
+
+| Route | Metoda | Opis |
+|-------|--------|------|
+| `/` | GET | Główna strona (przeglądarka wyników) |
+
+### Zalogowany użytkownik (admin)
+
+| Route | Metoda | Opis |
+|-------|--------|------|
+| `/admin` | GET | Panel administracyjny |
+| `/admin/login` | GET, POST | Logowanie |
+| `/admin/logout` | GET | Wylogowanie |
+| `/admin/upload` | POST | Wgranie pliku .cab |
+| `/admin/delete/<id>` | POST | Usunięcie zawodów |
+| `/admin/users` | GET | Lista użytkowników (API JSON) |
+| `/admin/users` | POST | Tworzenie użytkownika |
+| `/admin/users/<id>` | POST | Usunięcie użytkownika |
+| `/admin/change-password` | POST | Zmiana hasła |
+
+### API Danych (JSON)
+
+| Route | Metoda | Opis |
+|-------|--------|------|
+| `/api/matches` | GET | Lista dostępnych zawodów |
+| `/api/match/<id>` | GET | Dane konkretnych zawodów |
+
+## Mapowanie dywizji (Shotgun)
 
 | DivId | Dywizja |
 |-------|---------|
