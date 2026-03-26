@@ -25,6 +25,7 @@ from database import (
     save_match,
     list_matches,
     get_match,
+    get_match_with_multiplier,
     delete_match,
     add_user,
     verify_user,
@@ -38,6 +39,7 @@ from database import (
     delete_ranking,
     add_match_to_ranking,
     update_match_rankings,
+    update_match_multiplier,
 )
 
 app = Flask(__name__)
@@ -220,6 +222,31 @@ def api_delete_match(match_id):
     return jsonify({"error": "Nie znaleziono zawodów"}), 404
 
 
+@app.route("/api/rankings")
+def api_list_rankings():
+    """Zwraca listę zapisanych rankingów."""
+    return jsonify(list_rankings())
+
+
+@app.route("/api/rankings/<int:ranking_id>")
+def api_get_ranking(ranking_id):
+    """Zwraca dane zapisanego rankingu wraz z zawodami (z mnożnikami)."""
+    result = get_ranking(ranking_id)
+    if result is None:
+        return jsonify({"error": "Nie znaleziono rankingu"}), 404
+    
+    # Pobierz dane dla wszystkich zawodów w rankingu (z multiplier)
+    matches_data = []
+    for match_id in result.get("match_ids", []):
+        match_result = get_match_with_multiplier(match_id)
+        if match_result:
+            match_result["match"]["id"] = match_id
+            matches_data.append(match_result)
+    
+    result["matches"] = matches_data
+    return jsonify(result)
+
+
 # ---------------------------------------------------------------------------
 # Admin panel
 # ---------------------------------------------------------------------------
@@ -294,19 +321,21 @@ def admin_upload():
 @app.route("/admin/matches/assign-rankings", methods=["POST"])
 @admin_required
 def admin_assign_rankings():
-    """Update ranking assignments for a match."""
+    """Update ranking assignments and multiplier for a match."""
     match_id = request.form.get("match_id", type=int)
     ranking_ids = request.form.getlist("ranking_ids")
+    multiplier = request.form.get("multiplier", type=float) or 1.0
     
     if not match_id:
         return redirect(url_for("admin_panel") + "?error=Brak+ID+zawodów")
     
     try:
         update_match_rankings(match_id, ranking_ids)
+        update_match_multiplier(match_id, multiplier)
     except Exception as exc:
         return redirect(url_for("admin_panel") + f"?error=B%C5%82%C4%99d:+{str(exc)}")
     
-    return redirect(url_for("admin_panel") + "?success=Rankingi+zawodów+zaktualizowane")
+    return redirect(url_for("admin_panel") + "?success=Zawody+zaktualizowane")
 
 
 @app.route("/admin/delete/<int:match_id>", methods=["POST"])
@@ -323,12 +352,13 @@ def admin_delete(match_id):
 def admin_create_ranking():
     name = request.form.get("name", "").strip()
     match_ids = request.form.getlist("match_ids")
+    top_matches_count = request.form.get("top_matches_count", type=int) or 0
 
     if not name:
         return redirect(url_for("admin_panel", tab="rankings", error="Nazwa rankingu jest wymagana"))
 
     try:
-        add_ranking(name, match_ids)
+        add_ranking(name, match_ids, top_matches_count)
     except Exception:
         return redirect(url_for("admin_panel", tab="rankings", error="Nie udało się dodać rankingu"))
 
@@ -340,12 +370,13 @@ def admin_create_ranking():
 def admin_update_ranking_route(ranking_id):
     name = request.form.get("name", "").strip()
     match_ids = request.form.getlist("match_ids")
+    top_matches_count = request.form.get("top_matches_count", type=int) or 0
 
     if not name:
         return redirect(url_for("admin_panel", tab="rankings", error="Nazwa rankingu jest wymagana"))
 
     try:
-        updated = update_ranking(ranking_id, name, match_ids)
+        updated = update_ranking(ranking_id, name, match_ids, top_matches_count)
     except Exception:
         return redirect(url_for("admin_panel", tab="rankings", error="Nie udało się zapisać rankingu"))
 
