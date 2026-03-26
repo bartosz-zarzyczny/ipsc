@@ -202,6 +202,7 @@ def build_results(data: dict) -> tuple[dict, list, list]:
             stage_scores.append({
                 "stage_id": stage_id,
                 "A": a, "B": b, "C": c, "D": d_, "M": m, "PE": pe,
+                "NS": pen,
                 "Pen": pen,
                 "time": t,
                 "hf": hf,

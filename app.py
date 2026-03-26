@@ -106,6 +106,7 @@ def _prepare(cab_path: str) -> dict:
                         "A": sc["A"], "B": sc["B"],
                         "C": sc["C"], "D": sc["D"],
                         "M": sc["M"], "PE": sc["PE"],
+                        "NS": sc.get("NS", 0),
                         "disq": sc["disq"],
                     } if sc else None
                     for sc in c["stage_scores"]
