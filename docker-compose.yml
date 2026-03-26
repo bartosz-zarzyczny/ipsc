@@ -3,9 +3,9 @@ version: "3.8"
 services:
   ipsc:
     build: .
-    container_name: ipsc-app
+    container_name: ${CONTAINER_NAME:-ipsc-app}
     ports:
-      - "3000:5000"
+      - "${PORT:-3001}:5000"
     volumes:
       - ./data:/app/data
       - ./WinMSS.cab:/app/WinMSS.cab:ro

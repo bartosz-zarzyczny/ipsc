@@ -7,9 +7,34 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import uuid
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ipsc.db")
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
+
+
+def _load_or_create_config() -> dict:
+    """Wczytaj config lub utwórz nowy z unikalnym ID instancji."""
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, "r") as f:
+            return json.load(f)
+    
+    # Generuj nową konfigurację z unikalnym ID
+    instance_id = str(uuid.uuid4())[:8]  # Pierwsze 8 znaków UUID
+    config = {"instance_id": instance_id, "created_at": datetime.now().isoformat()}
+    
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(config, f, indent=2)
+    
+    return config
+
+
+# Wczytaj konfigurację przy imporcie
+CONFIG = _load_or_create_config()
+INSTANCE_ID = CONFIG["instance_id"]
+DB_PATH = os.path.join(DATA_DIR, f"{INSTANCE_ID}.db")
 
 
 def get_db() -> sqlite3.Connection:

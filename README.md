@@ -6,10 +6,14 @@ Narzędzie do wyciągania i przeglądania wyników zawodów strzeleckich IPSC z 
 
 ```
 ├── WinMSS.cab                    # Plik z danymi zawodów (WinMSS export)
-├── ipsc.db                       # Baza danych SQLite (zawody, użytkownicy)
+├── data/                         # Folder z bazą danych i konfiguracją (persystentny w Docker)
+│   ├── config.json               # Automatycznie generowana konfiguracja instancji
+│   └── {instance_id}.db          # Baza danych SQLite (unikalnie nazwana dla każdej instancji)
 ├── winmss_results.py             # Skrypt CLI – wyniki w terminalu / eksport CSV
 ├── app.py                        # Serwer Flask – przeglądarkowy interfejs UI
 ├── database.py                   # Warstwa bazy danych (ORM)
+├── docker-compose.yml            # Konfiguracja Docker Compose
+├── Dockerfile                    # Specyfikacja kontenera
 └── templates/
     ├── index.html                # Frontend (przeglądarka wyników)
     ├── admin.html                # Panel administracyjny (zawody + użytkownicy)
@@ -39,22 +43,54 @@ python3 app.py
 #### Opcja 1: Docker Compose (zalecane)
 
 ```bash
-# Budowanie i uruchamianie
+# Instancja domyślna – port 3001, domyślna nazwa kontenera
 docker-compose up --build
 
-# Następnym razem (bez rebuildu)
-docker-compose up
-
-# W tle
+# Lub w tle
 docker-compose up -d
-
-# Zatrzymanie
-docker-compose down
 ```
 
-Aplikacja będzie dostępna na `http://localhost:6000`.
+**Uruchomienie wielu instancji na jednym VPSie:**
 
-Baza danych (`ipsc.db`) będzie przechowywana w katalogu `./data/` na hoście.
+Aby uniknąć konfliktów między instancjami, użyj flagi `-p` (project-name). Każdy projekt musi mieć unikalną nazwę:
+
+```bash
+# Instancja 1 – port 3001, projekt ipsc1
+CONTAINER_NAME=ipsc-app-1 PORT=3001 docker-compose -p ipsc1 up -d
+
+# Instancja 2 – port 3002, projekt ipsc2
+CONTAINER_NAME=ipsc-app-2 PORT=3002 docker-compose -p ipsc2 up -d
+
+# Instancja 3 – port 3003, projekt ipsc3
+CONTAINER_NAME=ipsc-app-3 PORT=3003 docker-compose -p ipsc3 up -d
+```
+
+**Zarządzanie instancjami:**
+
+```bash
+# Wyświetl wszystkie uruchomione kontenery
+docker ps
+
+# Zatrzymaj konkretną instancję
+docker-compose -p ipsc1 down
+
+# Podgląd logów instancji
+docker-compose -p ipsc1 logs -f
+
+# Restartuj konkretną instancję
+docker-compose -p ipsc1 restart
+```
+
+**Pourczenie flagi `-p`:**
+
+Flaga `-p` izoluje każdy projekt z jego kontenerami, sieciami i wolumenami. Bez niej wszystkie instancje dzielą ten sam project-name, co prowadzi do konfliktów i uniemożliwia uruchomienie wielu instancji jednocześnie.
+
+Każda instancja automatycznie utworzy:
+- Unikalny `config.json` (ID instancji)
+- Unikalną bazę danych (`data/{instance_id}.db`)
+- Oddzielne dane bez konfliktów
+
+Baza danych (`{instance_id}.db`) będzie przechowywana w katalogu `./data/` na hoście i **persysty pomiędzy restartami**.
 
 #### Opcja 2: Docker bezpośrednio
 
@@ -65,7 +101,7 @@ docker build -t ipsc:latest .
 # Uruchamianie kontenera
 docker run -d \
   --name ipsc-app \
-  -p 6000:5000 \
+  -p 3001:5000 \
   -v $(pwd)/data:/app/data \
   ipsc:latest
 
@@ -76,13 +112,17 @@ docker rm ipsc-app
 
 #### Zmienne środowiskowe
 
-W `docker-compose.yml` można zmienić:
-- **PORT** — zmień `6000:5000` na `3000:5000` aby dostęp był na porcie 3000
-- **SECRET_KEY** — ustaw bezpieczny klucz sesji (domyślnie: `default-secret-key-change-me`)
+W `docker-compose.yml` można dostosować:
 
+| Zmienna | Opis | Domyślnie |
+|---------|------|----------|
+| `PORT` | Port hosta do mapowania | `3001` |
+| `CONTAINER_NAME` | Nazwa kontenera Docker | `ipsc-app` |
+| `SECRET_KEY` | Klucz sesji Flask (SHA-256) | `default-secret-key-change-me` |
+
+**Przykład:**
 ```bash
-# Przykład z custom secret key
-docker-compose up -e SECRET_KEY="twoj-bezpieczny-klucz"
+CONTAINER_NAME=my-app PORT=8080 SECRET_KEY="moj-super-tajny-klucz" docker-compose up -d
 ```
 
 ## Skrypt CLI (`winmss_results.py`)
@@ -117,7 +157,7 @@ Dostęp do panelu administracyjnego wymaga zalogowania się.
 
 **Konto domyślne:**
 - **Login:** `bartek`
-- **Hasło:** `IP$c2023`
+- **Hasło:** `IP$c2023` (ZMIEŃ JE PO PIERWSZYM LOGOWANIU!)
 
 Konta użytkowników przechowywane są w bazie danych SQLite (`ipsc.db`) z zabezpieczeniem SHA-256.
 
@@ -164,7 +204,35 @@ Dostępny pod `/admin` — wymaga zalogowania.
 
 ## Baza danych (`database.py`)
 
-Aplikacja wykorzystuje SQLite (`ipsc.db`) do przechowywania zawodów i zarządzania użytkownikami.
+Aplikacja wykorzystuje SQLite do przechowywania zawodów i zarządzania użytkownikami.
+
+### Konfiguracja instancji (`data/config.json`)
+
+Każda instancja automatycznie generuje unikalny ID przy pierwszym uruchomieniu i zapisuje go w pliku konfiguracyjnym:
+
+```json
+{
+  "instance_id": "a1b2c3d4",
+  "created_at": "2026-03-26T10:30:00"
+}
+```
+
+**Pole konfiguracji:**
+- **instance_id** — losowy 8-znakowy identyfikator (pierwsze 8 znaków UUID, np. `"a1b2c3d4"`)
+- **created_at** — znacznik czasu pierwszego uruchomienia instancji
+
+**Nazwanie bazy danych:**
+
+Baza danych jest automatycznie tworzona w folderze `data/` z nazwą opartą na `instance_id` z `config.json`:
+
+```
+data/{instance_id}.db
+```
+
+Na przykład, jeśli `instance_id = "a1b2c3d4"`, baza będzie: `data/a1b2c3d4.db`
+
+Plik `config.json` **persysty** między restartami kontenera (znajduje się w tomie Docker), dlatego wszystkie dane pozostają nienaruszone.
+To rozwiązanie pozwala na uruchomienie kilka instancji na jednym VPSie bez konfliktów — każda ma swoją bazę danych z unikalną nazwą.
 
 ### Tabela: `matches`
 
