@@ -16,7 +16,7 @@ A tool for extracting and viewing IPSC shooting competition results from WinMSS 
 ├── Dockerfile                    # Container specification
 └── templates/
     ├── index.html                # Frontend (results browser)
-    ├── admin.html                # Admin panel (competitions + users)
+    ├── admin.html                # Admin panel (competitions + rankings + users)
     └── admin_login.html          # Login form
 ```
 
@@ -182,6 +182,12 @@ Available at `/admin` — requires login.
 - **Competitions List** — table of all saved competitions (ID, name, date, level)
 - **Delete Competitions** — buttons to delete individual competitions from database
 
+#### Tab: Rankings
+- **Create ranking** — ranking name plus multi-select of competitions that form the ranking group
+- **Edit ranking** — change the name and assigned competitions
+- **Delete ranking** — available only when the ranking has no assigned competitions
+- **Rankings list** — overview of names, competition counts, and full assignments
+
 #### Tab: Users
 - **Change Password** — form to change logged-in user's password (requires old password)
 - **Manage Users** — table of all users with "You" label for logged-in user
@@ -254,6 +260,37 @@ CREATE TABLE matches (
 - **data_json** — full JSON data (structured results, stages, competitors)
 - **created_at** — timestamp of addition
 
+### Table: `rankings`
+
+```sql
+CREATE TABLE rankings (
+  id INTEGER PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+)
+```
+
+- **id** — unique ranking identifier
+- **name** — ranking group name
+- **created_at** — creation timestamp
+- **updated_at** — last edit timestamp
+
+### Table: `ranking_matches`
+
+```sql
+CREATE TABLE ranking_matches (
+  ranking_id INTEGER NOT NULL,
+  match_id INTEGER NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (ranking_id, match_id)
+)
+```
+
+- **ranking_id** — reference to `rankings`
+- **match_id** — reference to `matches`
+- **created_at** — assignment timestamp
+
 ### Table: `users`
 
 ```sql
@@ -276,6 +313,10 @@ CREATE TABLE users (
 - `list_users()` — retrieves list of all users
 - `delete_user(user_id)` — deletes user (prevents deletion of last user)
 - `change_password(user_id, password_hash)` — changes password
+- `list_rankings()` — returns rankings with assigned competitions
+- `add_ranking(name, match_ids)` — creates a ranking and assigns competitions
+- `update_ranking(ranking_id, name, match_ids)` — updates a ranking and its assignments
+- `delete_ranking(ranking_id)` — deletes an empty ranking
 
 ## API Routes
 
@@ -294,6 +335,9 @@ CREATE TABLE users (
 | `/admin/logout` | GET | Logout |
 | `/admin/upload` | POST | Upload .cab file |
 | `/admin/delete/<id>` | POST | Delete competition |
+| `/admin/rankings` | POST | Create a ranking |
+| `/admin/rankings/<id>` | POST | Edit a ranking |
+| `/admin/rankings/<id>/delete` | POST | Delete an empty ranking |
 | `/admin/users` | GET | List users (JSON API) |
 | `/admin/users` | POST | Create user |
 | `/admin/users/<id>` | POST | Delete user |
