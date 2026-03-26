@@ -434,6 +434,11 @@ function applyFilters() {
       ? `${filtered.length} zawodników`
       : `${filtered.length} / ${G.data.competitors.length}`;
 
+  // Gdy filtr dywizji aktywny → domyślnie sortuj wg miejsca w dywizji rosnąco
+  const divFilter = document.getElementById('f-div').value;
+  if (divFilter && G.sort.col === 'rank') { G.sort.col = 'div_rank'; G.sort.dir = 'asc'; }
+  if (!divFilter && G.sort.col === 'div_rank') { G.sort.col = 'rank'; G.sort.dir = 'asc'; }
+
   if (G.tab === 'overall')   renderOverall(filtered);
   if (G.tab === 'divisions') renderDivisions(filtered);
   if (G.tab === 'stages')    renderStage(G.stageIdx, filtered);
@@ -449,17 +454,23 @@ function doSort(col) {
   applyFilters();
 }
 
-function sorted(list) {
+function sorted(list, divRankMap) {
   const { col, dir } = G.sort;
   const sign = dir === 'asc' ? 1 : -1;
   return [...list].sort((a, b) => {
     if (a.is_disq && !b.is_disq) return 1;
     if (!a.is_disq && b.is_disq) return -1;
-    let va = a[col], vb = b[col];
-    if (col === 'name') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
-    if (col === 'rank') {
-      va = a.is_disq ? 99999 : (typeof va === 'number' ? va : 99999);
-      vb = b.is_disq ? 99999 : (typeof vb === 'number' ? vb : 99999);
+    let va, vb;
+    if (col === 'div_rank' && divRankMap) {
+      va = a.is_disq ? 99999 : (divRankMap[a.comp_id] ?? 99999);
+      vb = b.is_disq ? 99999 : (divRankMap[b.comp_id] ?? 99999);
+    } else {
+      va = a[col]; vb = b[col];
+      if (col === 'name') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      if (col === 'rank') {
+        va = a.is_disq ? 99999 : (typeof va === 'number' ? va : 99999);
+        vb = b.is_disq ? 99999 : (typeof vb === 'number' ? vb : 99999);
+      }
     }
     return va < vb ? -sign : va > vb ? sign : 0;
   });
@@ -487,8 +498,6 @@ const COLS = [
 ];
 
 function renderOverall(list) {
-  const data = sorted(list);
-
   // Czy aktywny jest filtr dywizji?
   const divFilter = document.getElementById('f-div').value;
 
@@ -496,21 +505,23 @@ function renderOverall(list) {
   const ptsField = divFilter ? 'total_points_in_division' : 'total_points_overall';
   const getPoints = c => c[ptsField] ?? c.total_points;
 
-  // Najlepsze punkty w aktualnie filtrowanej liście (do obliczenia % lidera)
-  const bestPts = data.filter(c => !c.is_disq).reduce((mx, c) => Math.max(mx, getPoints(c)), 0);
-
-  // Miejsce w dywizji (obliczane tylko gdy filtr dywizji aktywny)
+  // Miejsce w dywizji — buduj PRZED sorted() żeby można sortować wg div_rank
   const divRankMap = {};
   if (divFilter) {
-    const activeSorted = [...data.filter(c => !c.is_disq)].sort((a,b) => getPoints(b) - getPoints(a));
+    const activeSorted = [...list.filter(c => !c.is_disq)].sort((a,b) => getPoints(b) - getPoints(a));
     activeSorted.forEach((c, i) => { divRankMap[c.comp_id] = i + 1; });
   }
+
+  const data = sorted(list, divRankMap);
+
+  // Najlepsze punkty w aktualnie filtrowanej liście (do obliczenia % lidera)
+  const bestPts = data.filter(c => !c.is_disq).reduce((mx, c) => Math.max(mx, getPoints(c)), 0);
 
   // Head
   const colsHtml = COLS.map(c =>
     `<th onclick="doSort('${c.key}')" title="${c.title}">${c.label}${sortArrow(c.key)}</th>`
   );
-  if (divFilter) colsHtml.splice(1, 0, '<th title="Miejsce w dywizji">#&nbsp;Dyw.</th>');
+  if (divFilter) colsHtml.splice(1, 0, `<th onclick="doSort('div_rank')" title="Miejsce w dywizji" style="cursor:pointer">#&nbsp;Dyw.${sortArrow('div_rank')}</th>`);
   document.getElementById('overall-head').innerHTML = colsHtml.join('') + '<th title="Rozwiń szczegóły torów"><i class="bi bi-chevron-down"></i></th>';
 
   // Body
