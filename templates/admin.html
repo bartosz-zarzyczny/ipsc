@@ -136,9 +136,9 @@
                     <button type="button" class="btn btn-sm btn-outline-primary" 
                       onclick="openEditMatchModal(this)" 
                       data-bs-toggle="modal" data-bs-target="#editMatchModal" 
-                      data-match-id="{{ m.id }}" data-match-name="{{ m.name|e }}" data-ranking-ids="{{ m.ranking_ids|join(',') }}" 
-                      title="Edytuj rankingi">
-                      <i class="bi bi-pencil"></i> Rankingi
+                      data-match-id="{{ m.id }}" data-match-name="{{ m.name|e }}" data-ranking-ids="{{ m.ranking_ids|join(',') }}" data-multiplier="{{ m.multiplier }}"
+                      title="Edytuj zawody">
+                      <i class="bi bi-pencil"></i> Edytuj
                     </button>
                     <form action="/admin/delete/{{ m.id }}" method="POST" style="display:inline"
                           onsubmit="return confirm('Usunąć zawody „{{ m.name|e }}”?')">
@@ -175,7 +175,16 @@
                 <label class="form-label small fw-semibold">Nazwa rankingu</label>
                 <input type="text" name="name" class="form-control" placeholder="np. Liga 2026" value="{{ editing_ranking.name if editing_ranking else '' }}" required>
               </div>
-              <div class="col-lg-8 d-flex align-items-end gap-2 flex-wrap justify-content-end">
+              <div class="col-lg-4">
+                <label class="form-label small fw-semibold">Liczba najlepszych zawodów do liczenia</label>
+                <div class="input-group">
+                  <input type="number" name="top_matches_count" class="form-control" placeholder="0 = wszystkie" value="{{ editing_ranking.top_matches_count if editing_ranking else 0 }}" min="0">
+                  <span class="input-group-text" title="0 = wszystkie zawody, 3 = tylko 3 najlepsze zawody będą liczyć się do rankingu">
+                    <i class="bi bi-info-circle"></i>
+                  </span>
+                </div>
+              </div>
+              <div class="col-lg-4 d-flex align-items-end gap-2 flex-wrap justify-content-end">
                 {% if editing_ranking %}
                 <a href="/admin?tab=rankings" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Anuluj</a>
                 {% endif %}
@@ -224,6 +233,7 @@
                 <tr>
                   <th>ID</th>
                   <th>Nazwa rankingu</th>
+                  <th title="Liczba zawodów do liczenia (0 = wszystkie)">Zawody<br><small>(top)</small></th>
                   <th>Przypisane zawody</th>
                   <th>Dodano</th>
                   <th>Aktualizacja</th>
@@ -235,6 +245,15 @@
                 <tr class="ranking-row">
                   <td class="text-muted">{{ ranking.id }}</td>
                   <td class="fw-semibold">{{ ranking.name }}</td>
+                  <td>
+                    <span title="{% if ranking.top_matches_count == 0 %}Wszystkie zawody liczą się do rankingu{% else %}Liczą się tylko {{ ranking.top_matches_count }} najlepszych zawodów{% endif %}">
+                      {% if ranking.top_matches_count == 0 %}
+                        <i class="bi bi-slash-circle text-muted"></i> wszystkie
+                      {% else %}
+                        <strong>{{ ranking.top_matches_count }}</strong>
+                      {% endif %}
+                    </span>
+                  </td>
                   <td>
                     {% if ranking.match_names %}
                       {{ ranking.match_names|replace(' || ', ', ') }}
@@ -366,14 +385,16 @@
     }
   });
   
-  // Funkcja do otwarcia modalu edycji rankingów
+  // Funkcja do otwarcia modalu edycji zawodów
   window.openEditMatchModal = function(button) {
     const matchId = button.getAttribute('data-match-id');
     const matchName = button.getAttribute('data-match-name');
     const rankingIds = (button.getAttribute('data-ranking-ids') || '').split(',').filter(x => x);
+    const multiplier = parseFloat(button.getAttribute('data-multiplier')) || 1.0;
     
     document.getElementById('editMatchId').value = matchId;
     document.getElementById('editMatchName').textContent = matchName;
+    document.getElementById('editMatchMultiplier').value = multiplier;
     
     document.querySelectorAll('#editMatchModal input[name="ranking_ids"]').forEach(checkbox => {
       checkbox.checked = rankingIds.includes(checkbox.value);
@@ -387,7 +408,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="editMatchModalLabel">
-          <i class="bi bi-pencil-square"></i> Edytuj rankingi zawodów
+          <i class="bi bi-pencil-square"></i> Edytuj zawody
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -395,6 +416,14 @@
         <div class="modal-body">
           <p class="small text-muted">Zawody: <strong id="editMatchName"></strong></p>
           <input type="hidden" id="editMatchId" name="match_id">
+          
+          <label class="form-label small fw-semibold">Mnożnik (dla rankingu)</label>
+          <div class="input-group mb-3">
+            <input type="number" id="editMatchMultiplier" name="multiplier" class="form-control" placeholder="1.0" step="0.01" min="0" value="1.0">
+            <span class="input-group-text" title="Mnożnik wyników (np. 1.1 dla zawodów ważniejszych). Stosowany tylko w obliczeniach rankingu.">
+              <i class="bi bi-info-circle"></i>
+            </span>
+          </div>
           
           <label class="form-label small fw-semibold">Przypisz do rankingów:</label>
           <div class="d-flex flex-column gap-2">

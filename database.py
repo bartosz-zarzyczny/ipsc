@@ -67,6 +67,7 @@ def init_db() -> None:
                 name        TEXT    NOT NULL,
                 date        TEXT,
                 level       INTEGER DEFAULT 1,
+                multiplier  REAL    DEFAULT 1.0,
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
                 data_json   TEXT    NOT NULL
             )
@@ -77,6 +78,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS rankings (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 name        TEXT    UNIQUE NOT NULL,
+                top_matches_count INTEGER DEFAULT 0,
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
                 updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
             )
@@ -93,6 +95,18 @@ def init_db() -> None:
                 FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
             )
         """)
+        
+        # Migrate: dodaj kolumnę top_matches_count jeśli nie istnieje
+        try:
+            conn.execute("ALTER TABLE rankings ADD COLUMN top_matches_count INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # Kolumna już istnieje
+        
+        # Migrate: dodaj kolumnę multiplier jeśli nie istnieje
+        try:
+            conn.execute("ALTER TABLE matches ADD COLUMN multiplier REAL DEFAULT 1.0")
+        except sqlite3.OperationalError:
+            pass  # Kolumna już istnieje
         
         conn.commit()
         conn.close()
@@ -140,6 +154,7 @@ def list_matches() -> list[dict]:
             m.name,
             m.date,
             m.level,
+            m.multiplier,
             m.created_at,
             COALESCE(GROUP_CONCAT(r.name, ' || '), '') AS ranking_names,
             COALESCE(GROUP_CONCAT(rm.ranking_id, ','), '') AS ranking_ids_str
@@ -172,6 +187,20 @@ def get_match(match_id: int) -> dict | None:
     if row is None:
         return None
     return json.loads(row["data_json"])
+
+
+def get_match_with_multiplier(match_id: int) -> dict | None:
+    """Load a saved match by id with multiplier metadata."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT data_json, multiplier FROM matches WHERE id = ?", (match_id,)
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    data = json.loads(row["data_json"])
+    data["match"]["multiplier"] = row["multiplier"] or 1.0
+    return data
 
 
 def delete_match(match_id: int) -> bool:
@@ -208,6 +237,7 @@ def list_rankings() -> list[dict]:
         SELECT
             r.id,
             r.name,
+            r.top_matches_count,
             r.created_at,
             r.updated_at,
             COUNT(rm.match_id) AS match_count,
@@ -227,7 +257,7 @@ def get_ranking(ranking_id: int) -> dict | None:
     """Load a ranking together with assigned match ids."""
     conn = get_db()
     ranking_row = conn.execute(
-        "SELECT id, name, created_at, updated_at FROM rankings WHERE id = ?",
+        "SELECT id, name, top_matches_count, created_at, updated_at FROM rankings WHERE id = ?",
         (ranking_id,),
     ).fetchone()
     if ranking_row is None:
@@ -246,11 +276,11 @@ def get_ranking(ranking_id: int) -> dict | None:
     return result
 
 
-def add_ranking(name: str, match_ids: list[str] | list[int] | None = None) -> int:
+def add_ranking(name: str, match_ids: list[str] | list[int] | None = None, top_matches_count: int = 0) -> int:
     """Create a ranking and attach selected matches."""
     normalized_match_ids = _normalize_match_ids(match_ids)
     conn = get_db()
-    cur = conn.execute("INSERT INTO rankings (name) VALUES (?)", (name,))
+    cur = conn.execute("INSERT INTO rankings (name, top_matches_count) VALUES (?, ?)", (name, top_matches_count))
     ranking_id = cur.lastrowid
     if normalized_match_ids:
         conn.executemany(
@@ -266,13 +296,13 @@ def add_ranking(name: str, match_ids: list[str] | list[int] | None = None) -> in
     return ranking_id
 
 
-def update_ranking(ranking_id: int, name: str, match_ids: list[str] | list[int] | None = None) -> bool:
+def update_ranking(ranking_id: int, name: str, match_ids: list[str] | list[int] | None = None, top_matches_count: int = 0) -> bool:
     """Update ranking details and replace match assignments."""
     normalized_match_ids = _normalize_match_ids(match_ids)
     conn = get_db()
     cur = conn.execute(
-        "UPDATE rankings SET name = ?, updated_at = datetime('now') WHERE id = ?",
-        (name, ranking_id),
+        "UPDATE rankings SET name = ?, top_matches_count = ?, updated_at = datetime('now') WHERE id = ?",
+        (name, top_matches_count, ranking_id),
     )
     if cur.rowcount == 0:
         conn.close()
@@ -361,6 +391,23 @@ def update_match_rankings(match_id: int, ranking_ids: list[str] | list[int] | No
         return False
     finally:
         conn.close()
+
+
+def update_match_multiplier(match_id: int, multiplier: float = 1.0) -> bool:
+    """Update multiplier for a match (used only in rankings)."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE matches SET multiplier = ? WHERE id = ?",
+            (max(0.0, multiplier), match_id),
+        )
+        conn.commit()
+        return True
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
 
 
 # ---------------------------------------------------------------------------

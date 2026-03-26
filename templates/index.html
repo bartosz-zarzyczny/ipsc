@@ -112,30 +112,77 @@
     .match-item .match-info .match-meta-sm { font-size:.78rem; color:#6c757d; }
     .match-item .btn-del { opacity:.4; transition:opacity .15s; }
     .match-item .btn-del:hover { opacity:1; }
+
+    /* Ranking view */
+    .ranking-header { background: linear-gradient(120deg, #0d1b2a 0%, #1b3a5c 60%, #1a6b96 100%); color: #fff; padding: 16px 24px; }
+    .ranking-header h2 { font-size: 1.3rem; margin: 0 0 6px; }
+    .ranking-meta { font-size: .85rem; opacity: .8; }
+    .ranking-filter { background: #fff; border-bottom: 1px solid #d8dde6; padding: 12px 16px; }
+    .ranking-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .ranking-table thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: #f3f5f9; padding: 8px 10px;
+      white-space: nowrap; border-bottom: 2px solid #c8cdd8; user-select: none;
+      text-align: center; font-weight: 600;
+    }
+    .ranking-table tbody tr:hover { background: #f0f4ff; }
+    .ranking-table td { padding: 8px 10px; border-bottom: 1px solid #e8eaf0; }
   </style>
 </head>
 <body>
 
 <!-- ══════════════════════════════════ UPLOAD ══════════════════════════════════ -->
-<div id="sec-upload" class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-lg-7">
-      <div class="text-center mb-5">
-        <div style="font-size:3.5rem">🏆</div>
-        <h1 class="fw-bold mt-2 mb-1">WinMSS Wyniki</h1>
-        <p class="text-muted">Przeglądarka wyników zawodów IPSC / strzeleckich</p>
-      </div>
+<div id="sec-upload">
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="text-center mb-5">
+          <div style="font-size:3.5rem">🏆</div>
+          <h1 class="fw-bold mt-2 mb-1">WinMSS Wyniki</h1>
+          <p class="text-muted">Przeglądarka wyników zawodów IPSC / strzeleckich</p>
+        </div>
 
-      <div id="upload-err" class="alert alert-danger mt-4 d-none small"></div>
+        <div id="upload-err" class="alert alert-danger mt-4 d-none small"></div>
 
-      <!-- Saved matches -->
-      <div id="saved-matches" class="mt-3 d-none">
-        <h5 class="text-center mb-3"><i class="bi bi-clock-history"></i> Wybierz zawody</h5>
-        <div id="match-list"></div>
-      </div>
+        <!-- Tab strip -->
+        <div class="tab-strip d-flex px-2 mb-0">
+          <button class="tab-btn active" id="tbtn-ranking" onclick="switchMainTab('ranking')">
+            <i class="bi bi-trophy"></i> Ranking
+          </button>
+          <button class="tab-btn" id="tbtn-matches" onclick="switchMainTab('matches')">
+            <i class="bi bi-clock-history"></i> Zawody
+          </button>
+        </div>
 
-      <div id="no-matches" class="text-center text-muted mt-4 d-none">
-        <p>Brak zawodów. Dodaj je w <a href="/admin">panelu admina</a>.</p>
+        <!-- Ranking Tab -->
+        <div id="tab-ranking" class="card shadow-sm rounded-bottom-0">
+          <div class="card-body">
+            <!-- Saved rankings -->
+            <div id="saved-rankings" class="mt-2 d-none">
+              <h5 class="text-center mb-3"><i class="bi bi-trophy"></i> Dostępne rankingi</h5>
+              <div id="ranking-list"></div>
+            </div>
+
+            <div id="no-rankings" class="text-center text-muted mt-4 d-none">
+              <p>Brak rankingów. Dodaj je w <a href="/admin">panelu admina</a>.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Matches Tab -->
+        <div id="tab-matches" class="d-none card shadow-sm rounded-bottom-0">
+          <div class="card-body">
+            <!-- Saved matches -->
+            <div id="saved-matches" class="mt-2 d-none">
+              <h5 class="text-center mb-3"><i class="bi bi-clock-history"></i> Wybierz zawody</h5>
+              <div id="match-list"></div>
+            </div>
+
+            <div id="no-matches" class="text-center text-muted mt-4 d-none">
+              <p>Brak zawodów. Dodaj je w <a href="/admin">panelu admina</a>.</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -242,6 +289,7 @@ const G = {
   sort:     { col: 'rank', dir: 'asc' },
   tab:      'overall',
   stageIdx: 0,
+  mainTab:  'ranking',
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -260,6 +308,24 @@ function uploadErr(msg) {
   const el = document.getElementById('upload-err');
   el.textContent = 'Błąd: ' + msg;
   el.classList.remove('d-none');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN TAB SWITCHING (Ranking / Zawody)
+═══════════════════════════════════════════════════════════════════════════ */
+function switchMainTab(tabName) {
+  G.mainTab = tabName;
+  
+  // Hide all tabs
+  document.getElementById('tab-ranking').classList.add('d-none');
+  document.getElementById('tab-matches').classList.add('d-none');
+  
+  // Show selected tab
+  document.getElementById('tab-' + tabName).classList.remove('d-none');
+  
+  // Update button states
+  document.getElementById('tbtn-ranking').classList.toggle('active', tabName === 'ranking');
+  document.getElementById('tbtn-matches').classList.toggle('active', tabName === 'matches');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -304,15 +370,57 @@ function loadMatch(id) {
 
 // Load match list on page load
 loadMatchList();
+loadRankingList();
+
+function loadRankingList() {
+  fetch('/api/rankings')
+    .then(r => r.json())
+    .then(rankings => {
+      const container = document.getElementById('saved-rankings');
+      const noRankings = document.getElementById('no-rankings');
+      const list = document.getElementById('ranking-list');
+      if (!rankings.length) {
+        container.classList.add('d-none');
+        noRankings.classList.remove('d-none');
+        return;
+      }
+      noRankings.classList.add('d-none');
+      container.classList.remove('d-none');
+      list.innerHTML = rankings.map(r => `
+        <div class="match-item" onclick="loadRanking(${r.id})">
+          <div class="match-info">
+            <div class="match-title">${esc(r.name)}</div>
+            <div class="match-meta-sm">
+              <i class="bi bi-list-ol"></i> ${r.match_count} ${r.match_count === 1 ? 'zawód' : 'zawodów'}
+              &nbsp;·&nbsp;<i class="bi bi-clock"></i> ${esc(r.created_at)}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    });
+}
+
+function loadRanking(id) {
+  show($loading);
+  fetch('/api/rankings/' + id)
+    .then(r => r.json())
+    .then(d => { if (d.error) throw new Error(d.error); initRankingResults(d); })
+    .catch(e => { show($upload); uploadErr(e.message); });
+}
 
 function resetUI() {
   G.data = null;
+  G.rankingInfo = null;
   document.getElementById('upload-err').classList.add('d-none');
   // clear dynamic division/cat filter options
   ['f-div','f-cat'].forEach(id => {
     const sel = document.getElementById(id);
     while (sel.options.length > 1) sel.remove(1);
   });
+  // Show tab buttons again
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('d-none'));
+  // Switch back to the appropriate tab based on current mainTab
+  switchMainTab(G.mainTab || 'matches');
   show($upload);
 }
 
@@ -362,6 +470,204 @@ function initResults(data) {
   highlightTab('overall');
   applyFilters();
   show($results);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INIT RANKING RESULTS
+═══════════════════════════════════════════════════════════════════════════ */
+function initRankingResults(rankingData) {
+  // Merge results from all matches in the ranking
+  if (!rankingData.matches || rankingData.matches.length === 0) {
+    uploadErr('Ranking nie zawiera żadnych zawodów');
+    show($upload);
+    return;
+  }
+
+  const topMatchesCount = rankingData.top_matches_count || 0; // 0 = wszystkie
+  
+  // Store matches metadata for column headers (with multiplier)
+  G.rankingMatches = rankingData.matches.map(m => ({
+    id: m.match.id,
+    name: m.match.name,
+    multiplier: m.match.multiplier || 1.0,
+    competitors: m.competitors,
+  }));
+
+  // Build competitor data with per-match results
+  // Use name+division as unique key (comp_id changes across matches)
+  const compMap = {}; // "Name|Division" -> { name, division, ..., matchResults: [...] }
+  
+  rankingData.matches.forEach((matchData, matchIdx) => {
+    const matchMultiplier = matchData.match.multiplier || 1.0;
+    matchData.competitors.forEach(comp => {
+      const compKey = `${comp.name}|${comp.division}`;
+      if (!compMap[compKey]) {
+        compMap[compKey] = {
+          comp_id: comp.comp_id, // Store first comp_id encountered
+          name: comp.name,
+          division: comp.division,
+          category: comp.category,
+          female: comp.female,
+          is_disq: comp.is_disq,
+          matchResults: [], // { matchId, pct_in_div, points, is_disq, multiplied_pct }
+        };
+      }
+      const c = compMap[compKey];
+      
+      // Get max HF for this competitor's division in this match
+      const divStages = matchData.competitors.filter(mc => mc.division === comp.division && !mc.is_disq);
+      let maxHF = 0;
+      divStages.forEach(mc => {
+        if (mc.overall_hf && mc.overall_hf > maxHF) maxHF = mc.overall_hf;
+      });
+      
+      const pctInDiv = maxHF > 0 && !comp.is_disq ? (comp.overall_hf / maxHF * 100) : 0;
+      const multipliedPct = pctInDiv * matchMultiplier; // Apply multiplier
+      
+      c.matchResults.push({
+        matchId: matchData.match.id,
+        pct_in_div: comp.is_disq ? 0 : pctInDiv,
+        multiplied_pct: comp.is_disq ? 0 : multipliedPct, // With multiplier applied
+        points: comp.total_points || 0,
+        is_disq: comp.is_disq,
+      });
+    });
+  });
+
+  const merged = Object.values(compMap);
+  
+  // Calculate best matches sum (using multiplied scores)
+  merged.forEach(c => {
+    const validResults = c.matchResults.filter(r => !r.is_disq);
+    const topResults = validResults
+      .sort((a, b) => b.multiplied_pct - a.multiplied_pct) // Sort by multiplied value
+      .slice(0, topMatchesCount > 0 ? topMatchesCount : validResults.length);
+    
+    c.total_pct = topResults.reduce((sum, r) => sum + r.multiplied_pct, 0); // Sum multiplied values
+  });
+
+  // Rank non-disqualified competitors
+  const active = merged.filter(c => !c.is_disq).sort((a,b) => b.total_pct - a.total_pct);
+  active.forEach((c, i) => {
+    c.rank = i + 1;
+  });
+
+  // Store in G.data for ranking view
+  G.data = merged;
+  G.rankingInfo = {
+    name: rankingData.name,
+    date: rankingData.updated_at?.substring(0, 10) || '–',
+    topMatchesCount: topMatchesCount,
+    matchCount: rankingData.match_count,
+  };
+
+  // Set up title
+  const topMatchesLabel = topMatchesCount > 0 
+    ? ` (${topMatchesCount} najlepszych)`
+    : ' (wszystkie)';
+  document.title = rankingData.name + ' — WinMSS';
+
+  // Set header for ranking
+  document.getElementById('r-name').textContent = rankingData.name;
+  document.getElementById('r-date').textContent = rankingData.updated_at?.substring(0, 10) || '–';
+  document.getElementById('r-level').textContent = rankingData.match_count;
+  document.getElementById('r-stages').textContent = rankingData.match_count;
+  document.getElementById('r-comps').textContent = merged.filter(c => !c.is_disq).length;
+
+  // Hide podium for rankings
+  document.getElementById('podium-row').innerHTML = '';
+
+  // Populate division filter with default to Open
+  const fdiv = document.getElementById('f-div');
+  fdiv.innerHTML = '<option value="">— wszystkie dywizje —</option>';
+  [...new Set(merged.map(c => c.division))].sort().forEach(div => {
+    const opt = document.createElement('option');
+    opt.value = opt.textContent = div;
+    if (div === 'Open') opt.selected = true;
+    fdiv.appendChild(opt);
+  });
+  fdiv.onchange = () => renderRankingTable();
+
+  // Hide filters for categories and stages
+  document.getElementById('f-cat').innerHTML = '<option value="">— wszystkie kategorie —</option>';
+  document.getElementById('f-cat').onchange = () => renderRankingTable();
+  document.getElementById('stage-btns').innerHTML = '';
+
+  // Hide tab bar for ranking
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.add('d-none'));
+
+  // Render ranking table
+  renderRankingTable();
+  show($results);
+}
+
+function renderRankingTable() {
+  // Get selected division
+  const selectedDiv = document.getElementById('f-div').value;
+  
+  // Filter by division
+  let filtered = G.data;
+  if (selectedDiv) {
+    filtered = G.data.filter(c => c.division === selectedDiv);
+  }
+  
+  // Sort by rank (already sorted, but filter may change order)
+  filtered = filtered.filter(c => !c.is_disq).sort((a,b) => a.rank - b.rank);
+
+  // Update count
+  document.getElementById('f-count').textContent = `${filtered.length} zawodników`;
+
+  // Build header with match names
+  let headerHTML = '<th style="width: 60px">#</th>';
+  headerHTML += '<th style="min-width: 180px">Zawodnik</th>';
+  
+  G.rankingMatches.forEach(m => {
+    headerHTML += `<th style="text-align: center; min-width: 90px; font-size: 0.85rem" title="${esc(m.name)}">
+      ${esc(m.name)}
+    </th>`;
+  });
+  
+  const topMatchesCount = G.rankingInfo.topMatchesCount;
+  const topLabel = topMatchesCount > 0 ? ` (top ${topMatchesCount})` : ' (wszystkie)';
+  headerHTML += `<th style="text-align: center; font-weight: bold; min-width: 100px">Razem${topLabel}</th>`;
+  
+  document.getElementById('overall-head').innerHTML = headerHTML;
+
+  // Build body rows
+  let bodyHTML = filtered.map(c => {
+    const rowClass = c.rank === 1 ? 'tr-1' : c.rank === 2 ? 'tr-2' : c.rank === 3 ? 'tr-3' : '';
+    let row = `<tr class="${rowClass}">
+      <td class="fw-bold">${c.rank}</td>
+      <td>
+        <div>${esc(c.name)}${c.female ? ' <i class="bi bi-gender-female text-danger"></i>' : ''}</div>
+        <div class="small text-muted">${divBadge(c.division)}</div>
+      </td>`;
+    
+    // Add per-match percentages
+    G.rankingMatches.forEach(m => {
+      const result = c.matchResults.find(r => r.matchId === m.id);
+      const pct = result ? result.pct_in_div.toFixed(1) : '–';
+      const pctNum = result?.pct_in_div || 0;
+      
+      const bgColor = pctNum > 0 ? Math.min(100, pctNum) : 0;
+      const opacity = bgColor / 100;
+      
+      row += `<td style="text-align: center; background: rgba(26, 95, 180, ${opacity * 0.2})">
+        <strong>${pct}%</strong>
+      </td>`;
+    });
+    
+    // Add total
+    const totalPct = c.total_pct.toFixed(1);
+    row += `<td style="text-align: center; background: rgba(26, 95, 180, 0.15); font-weight: bold">
+      ${totalPct}%
+    </td>`;
+    
+    row += '</tr>';
+    return row;
+  }).join('');
+
+  document.getElementById('overall-body').innerHTML = bodyHTML || '<tr><td colspan="100" class="text-center text-muted py-4">Brak wyników dla wybranej dywizji</td></tr>';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -428,6 +734,13 @@ function getFiltered() {
 
 function applyFilters() {
   if (!G.data) return;
+  
+  // If displaying ranking, update the ranking table
+  if (G.rankingInfo) {
+    renderRankingTable();
+    return;
+  }
+  
   const filtered = getFiltered();
   document.getElementById('f-count').textContent =
     filtered.length === G.data.competitors.length
