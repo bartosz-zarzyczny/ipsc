@@ -677,7 +677,7 @@ function renderStage(idx, filtered) {
   document.getElementById('stage-head').innerHTML = `
     <th>#&nbsp;Tor</th><th>#&nbsp;Og.</th><th>Zawodnik</th><th>Dywizja</th><th>Kat.</th>
     <th title="Alpha/Popper">A</th><th title="Beta">B</th><th title="Charlie">C</th><th title="Delta">D</th>
-    <th title="Chybień">M</th><th title="Procedural Errors">PE</th>
+    <th title="Chybień">M</th><th title="No-Shoot">NS</th><th title="Procedural Errors">PE</th>
     <th>Pkt</th><th>Czas</th><th>HF</th><th>%&nbsp;w&nbsp;dyw.</th>`;
 
   let rows = active.map((x, i) => {
@@ -695,8 +695,9 @@ function renderStage(idx, filtered) {
       <td class="${sc.B>0?'charlie':''}">${sc.B}</td>
       <td class="${sc.C>0?'charlie':''}">${sc.C}</td>
       <td class="${sc.D>0?'delta':''}">${sc.D}</td>
-      <td class="${sc.M>0?'miss':''}">${sc.M}</td>
-      <td class="${sc.PE>0?'proc':''}">${sc.PE}</td>
+      <td class="${sc.M>0?'miss':''}"> ${sc.M}</td>
+      <td class="${sc.NS>0?'miss':''}"> ${sc.NS}</td>
+      <td class="${sc.PE>0?'proc':''}"> ${sc.PE}</td>
       <td>${sc.pts.toFixed(4)}</td>
       <td>${sc.time.toFixed(2)}s</td>
       <td><span class="hf">${sc.hf.toFixed(4)}</span></td>
@@ -711,7 +712,7 @@ function renderStage(idx, filtered) {
       <td>${typeof c.rank === 'number' ? c.rank : 'DSQ'}</td>
       <td>${esc(c.name)}</td>
       <td>${divBadge(c.division)}</td><td>${catBadge(c.category)}</td>
-      <td colspan="10" class="text-danger fst-italic">Dyskwalifikowany</td>
+      <td colspan="11" class="text-danger fst-italic">Dyskwalifikowany</td>
     </tr>`;
   }).join('');
 
