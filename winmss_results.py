@@ -66,7 +66,7 @@ def parse_winmss_xml(path: str) -> list[dict]:
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
     rows = []
-    for m in re.finditer(r"<z:row\s+([^/]+?)/>", content, re.DOTALL):
+    for m in re.finditer(r"<z:row\s+([^>]+)/>", content, re.DOTALL):
         attr_str = m.group(1)
         attrs = dict(re.findall(r"(\w+)='([^']*)'", attr_str))
         rows.append(attrs)

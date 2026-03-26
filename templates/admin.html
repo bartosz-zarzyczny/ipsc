@@ -9,9 +9,13 @@
   <style>
     body { background: #f0f2f5; }
     .admin-header { background: #1a2236; color: #fff; padding: 16px 0; }
-    .match-row { transition: background .15s; }
-    .match-row:hover { background: #f8f9ff; }
+    .match-row, .ranking-row { transition: background .15s; }
+    .match-row:hover, .ranking-row:hover { background: #f8f9ff; }
     .alert { margin-top: 1rem; }
+    .rank-match-list { max-height: 320px; overflow: auto; }
+    .rank-match-item { border: 1px solid #dee2e6; border-radius: 8px; padding: 10px 12px; background: #fff; }
+    .rank-match-item + .rank-match-item { margin-top: 8px; }
+    .rank-match-meta { font-size: .8rem; color: #6c757d; }
   </style>
 </head>
 <body>
@@ -32,7 +36,6 @@
 
 <div class="container py-4">
 
-  <!-- Notifications -->
   {% if request.args.get('error') %}
   <div class="alert alert-danger alert-dismissible fade show" role="alert">
     <i class="bi bi-exclamation-circle"></i> {{ request.args.get('error') }}
@@ -46,11 +49,15 @@
   </div>
   {% endif %}
 
-  <!-- Tabs navigation -->
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item" role="presentation">
       <button class="nav-link active" id="matches-tab" data-bs-toggle="tab" data-bs-target="#matches" type="button" role="tab" aria-controls="matches" aria-selected="true">
         <i class="bi bi-trophy"></i> Zawody
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="rankings-tab" data-bs-toggle="tab" data-bs-target="#rankings" type="button" role="tab" aria-controls="rankings" aria-selected="false">
+        <i class="bi bi-diagram-3"></i> Ranking
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -60,26 +67,44 @@
     </li>
   </ul>
 
-  <!-- Tab content -->
   <div class="tab-content">
 
-  <!-- Tab content -->
-  <div class="tab-content">
-
-    <!-- Matches Tab -->
     <div class="tab-pane fade show active" id="matches" role="tabpanel" aria-labelledby="matches-tab">
-      <!-- Upload section -->
+      {% if rankings|length == 0 %}
+      <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> <strong>Brak rankingów</strong> — Aby dodać zawody, musisz najpierw utworzyć ranking w zakładce <strong>Ranking</strong>.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      {% endif %}
+      
       <div class="card shadow-sm mb-4">
         <div class="card-body">
           <h6 class="fw-bold mb-3"><i class="bi bi-cloud-upload"></i> Dodaj zawody</h6>
-          <form action="/admin/upload" method="POST" enctype="multipart/form-data" class="d-flex align-items-center gap-3 flex-wrap">
-            <input type="file" name="file" accept=".cab" class="form-control" style="max-width:400px" required>
-            <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Wgraj plik .cab</button>
+          <form action="/admin/upload" method="POST" enctype="multipart/form-data">
+            <div class="row g-3 align-items-end">
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold">Plik .cab</label>
+                <input type="file" name="file" accept=".cab" class="form-control" required {% if rankings|length == 0 %}disabled{% endif %}>
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold">Ranking</label>
+                <select name="ranking_id" class="form-control" required {% if rankings|length == 0 %}disabled{% endif %}>
+                  <option value="">— wybierz ranking —</option>
+                  {% for r in rankings %}
+                  <option value="{{ r.id }}">{{ r.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-sm-4">
+                <button type="submit" class="btn btn-primary w-100" {% if rankings|length == 0 %}disabled{% endif %}>
+                  <i class="bi bi-plus-lg"></i> Wgraj plik .cab
+                </button>
+              </div>
+            </div>
           </form>
         </div>
       </div>
 
-      <!-- Match list -->
       <div class="card shadow-sm">
         <div class="card-body">
           <h6 class="fw-bold mb-3"><i class="bi bi-trophy"></i> Zapisane zawody ({{ matches|length }})</h6>
@@ -93,6 +118,7 @@
                   <th>Nazwa zawodów</th>
                   <th>Data</th>
                   <th>Poziom</th>
+                  <th>Ranking</th>
                   <th>Dodano</th>
                   <th class="text-end">Akcje</th>
                 </tr>
@@ -104,10 +130,18 @@
                   <td class="fw-semibold">{{ m.name }}</td>
                   <td>{{ m.date or '–' }}</td>
                   <td>L{{ m.level }}</td>
+                  <td class="small">{{ m.ranking_names|replace(' || ', ', ') if m.ranking_names else '–' }}</td>
                   <td class="text-muted small">{{ m.created_at }}</td>
                   <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                      onclick="openEditMatchModal(this)" 
+                      data-bs-toggle="modal" data-bs-target="#editMatchModal" 
+                      data-match-id="{{ m.id }}" data-match-name="{{ m.name|e }}" data-ranking-ids="{{ m.ranking_ids|join(',') }}" 
+                      title="Edytuj rankingi">
+                      <i class="bi bi-pencil"></i> Rankingi
+                    </button>
                     <form action="/admin/delete/{{ m.id }}" method="POST" style="display:inline"
-                          onsubmit="return confirm('Usunąć zawody „{{ m.name }}"?')">
+                          onsubmit="return confirm('Usunąć zawody „{{ m.name|e }}”?')">
                       <button type="submit" class="btn btn-sm btn-outline-danger" title="Usuń">
                         <i class="bi bi-trash"></i> Usuń
                       </button>
@@ -126,10 +160,116 @@
       </div>
     </div>
 
-    <!-- Users Tab -->
-    <div class="tab-pane fade" id="users" role="tabpanel" aria-labelledby="users-tab">
+    <div class="tab-pane fade" id="rankings" role="tabpanel" aria-labelledby="rankings-tab">
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          {% if editing_ranking %}
+          <h6 class="fw-bold mb-3"><i class="bi bi-pencil-square"></i> Edytuj ranking</h6>
+          <form action="/admin/rankings/{{ editing_ranking.id }}" method="POST">
+          {% else %}
+          <h6 class="fw-bold mb-3"><i class="bi bi-plus-circle"></i> Dodaj ranking</h6>
+          <form action="/admin/rankings" method="POST">
+          {% endif %}
+            <div class="row g-3">
+              <div class="col-lg-4">
+                <label class="form-label small fw-semibold">Nazwa rankingu</label>
+                <input type="text" name="name" class="form-control" placeholder="np. Liga 2026" value="{{ editing_ranking.name if editing_ranking else '' }}" required>
+              </div>
+              <div class="col-lg-8 d-flex align-items-end gap-2 flex-wrap justify-content-end">
+                {% if editing_ranking %}
+                <a href="/admin?tab=rankings" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Anuluj</a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-check-lg"></i> {{ 'Zapisz zmiany' if editing_ranking else 'Dodaj ranking' }}
+                </button>
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Przypisz zawody do rankingu</label>
+                {% if matches %}
+                <div class="rank-match-list">
+                  {% for m in matches %}
+                  <label class="rank-match-item w-100">
+                    <div class="d-flex align-items-start gap-2">
+                      <input class="form-check-input mt-1" type="checkbox" name="match_ids" value="{{ m.id }}" {% if editing_ranking and m.id in editing_ranking.match_ids %}checked{% endif %}>
+                      <div class="flex-grow-1">
+                        <div class="fw-semibold">{{ m.name }}</div>
+                        <div class="rank-match-meta">
+                          ID {{ m.id }} · {{ m.date or '–' }} · L{{ m.level }}
+                          {% if m.ranking_names %}
+                          · aktualnie w: {{ m.ranking_names|replace(' || ', ', ') }}
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Brak zawodów do przypisania. Najpierw wgraj plik .cab.</p>
+                {% endif %}
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
 
-      <!-- Change password section -->
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-diagram-3"></i> Zapisane rankingi ({{ rankings|length }})</h6>
+
+          {% if rankings %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Nazwa rankingu</th>
+                  <th>Przypisane zawody</th>
+                  <th>Dodano</th>
+                  <th>Aktualizacja</th>
+                  <th class="text-end">Akcje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ranking in rankings %}
+                <tr class="ranking-row">
+                  <td class="text-muted">{{ ranking.id }}</td>
+                  <td class="fw-semibold">{{ ranking.name }}</td>
+                  <td>
+                    {% if ranking.match_names %}
+                      {{ ranking.match_names|replace(' || ', ', ') }}
+                    {% else %}
+                      <span class="text-muted">Brak przypisanych zawodów</span>
+                    {% endif %}
+                    <div class="small text-muted">{{ ranking.match_count }} zawodów</div>
+                  </td>
+                  <td class="text-muted small">{{ ranking.created_at }}</td>
+                  <td class="text-muted small">{{ ranking.updated_at }}</td>
+                  <td class="text-end">
+                    <a href="/admin?tab=rankings&edit_ranking_id={{ ranking.id }}" class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-pencil"></i> Edytuj
+                    </a>
+                    <form action="/admin/rankings/{{ ranking.id }}/delete" method="POST" style="display:inline"
+                          onsubmit="return confirm('Usunąć ranking „{{ ranking.name|e }}”?{% if ranking.match_count > 0 %}\n\nRanking musi być pusty. Najpierw usuń wszystkie przypisane zawody.{% endif %}')">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Usuń" {% if ranking.match_count > 0 %}disabled{% endif %}>
+                        <i class="bi bi-trash"></i> Usuń
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="text-muted mb-0">Brak rankingów. Dodaj pierwszy ranking powyżej.</p>
+          {% endif %}
+
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="users" role="tabpanel" aria-labelledby="users-tab">
       <div class="card shadow-sm mb-4">
         <div class="card-body">
           <h6 class="fw-bold mb-3"><i class="bi bi-key"></i> Zmiana hasła</h6>
@@ -153,12 +293,10 @@
         </div>
       </div>
 
-      <!-- Users management -->
       <div class="card shadow-sm">
         <div class="card-body">
           <h6 class="fw-bold mb-3"><i class="bi bi-people-fill"></i> Zarządzanie użytkownikami ({{ users|length }})</h6>
 
-          <!-- Add user form -->
           <div class="mb-4">
             <form action="/admin/users" method="POST" class="row g-2 align-items-end">
               <div class="col-sm-5">
@@ -175,7 +313,6 @@
             </form>
           </div>
 
-          <!-- Users table -->
           {% if users %}
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 small">
@@ -193,7 +330,7 @@
                   <td class="text-muted">{{ u.created_at }}</td>
                   <td class="text-end">
                     <form action="/admin/users/{{ u.id }}" method="POST" style="display:inline"
-                          onsubmit="return confirm('Usunąć użytkownika „{{ u.username }}"?{% if users|length == 1 %}\n\nUwaga: To ostatni użytkownik!{% endif %}')">
+                          onsubmit="return confirm('Usunąć użytkownika „{{ u.username|e }}”?{% if users|length == 1 %}\n\nUwaga: To ostatni użytkownik!{% endif %}')">
                       <button type="submit" class="btn btn-sm btn-outline-danger" title="Usuń"{% if users|length == 1 %} disabled{% endif %}>
                         <i class="bi bi-trash"></i> Usuń
                       </button>
@@ -210,7 +347,6 @@
 
         </div>
       </div>
-
     </div>
 
   </div>
@@ -219,15 +355,68 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // Open tab based on URL parameter
   window.addEventListener('load', function() {
     const tab = new URLSearchParams(window.location.search).get('tab');
-    if (tab === 'users') {
-      const btn = document.getElementById('users-tab');
-      if (btn) btn.click();
+    if (!tab) {
+      return;
+    }
+    const btn = document.getElementById(tab + '-tab');
+    if (btn) {
+      btn.click();
     }
   });
+  
+  // Funkcja do otwarcia modalu edycji rankingów
+  window.openEditMatchModal = function(button) {
+    const matchId = button.getAttribute('data-match-id');
+    const matchName = button.getAttribute('data-match-name');
+    const rankingIds = (button.getAttribute('data-ranking-ids') || '').split(',').filter(x => x);
+    
+    document.getElementById('editMatchId').value = matchId;
+    document.getElementById('editMatchName').textContent = matchName;
+    
+    document.querySelectorAll('#editMatchModal input[name="ranking_ids"]').forEach(checkbox => {
+      checkbox.checked = rankingIds.includes(checkbox.value);
+    });
+  };
 </script>
+
+<!-- Modal edycji rankingów zawodów -->
+<div class="modal fade" id="editMatchModal" tabindex="-1" aria-labelledby="editMatchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editMatchModalLabel">
+          <i class="bi bi-pencil-square"></i> Edytuj rankingi zawodów
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="/admin/matches/assign-rankings" method="POST">
+        <div class="modal-body">
+          <p class="small text-muted">Zawody: <strong id="editMatchName"></strong></p>
+          <input type="hidden" id="editMatchId" name="match_id">
+          
+          <label class="form-label small fw-semibold">Przypisz do rankingów:</label>
+          <div class="d-flex flex-column gap-2">
+            {% for r in rankings %}
+            <label class="form-check">
+              <input class="form-check-input" type="checkbox" name="ranking_ids" value="{{ r.id }}">
+              <span class="form-check-label">{{ r.name }}</span>
+            </label>
+            {% endfor %}
+            {% if rankings|length == 0 %}
+            <p class="text-muted small">Brak dostępnych rankingów.</p>
+            {% endif %}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Zapisz</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

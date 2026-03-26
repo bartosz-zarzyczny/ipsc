@@ -16,7 +16,7 @@ Narzędzie do wyciągania i przeglądania wyników zawodów strzeleckich IPSC z 
 ├── Dockerfile                    # Specyfikacja kontenera
 └── templates/
     ├── index.html                # Frontend (przeglądarka wyników)
-    ├── admin.html                # Panel administracyjny (zawody + użytkownicy)
+    ├── admin.html                # Panel administracyjny (zawody + ranking + użytkownicy)
     └── admin_login.html          # Formularz logowania
 ```
 
@@ -182,6 +182,12 @@ Dostępny pod `/admin` — wymaga zalogowania.
 - **Lista zawodów** — tabela wszystkich zapisanych zawodów (ID, nazwa, data, poziom)
 - **Usuwanie zawodów** — przyciski do usunięcia pojedynczych zawodów z bazy
 
+#### Tab: Ranking
+- **Dodawanie rankingu** — nazwa rankingu + wybór wielu zawodów, które tworzą grupę rankingową
+- **Edycja rankingu** — zmiana nazwy oraz przypisanych zawodów
+- **Usuwanie rankingu** — możliwe tylko wtedy, gdy ranking nie ma przypisanych zawodów
+- **Lista rankingów** — podgląd nazw, liczby zawodów i pełnych przypisań do rankingu
+
 #### Tab: Użytkownicy
 - **Zmiana hasła** — formularz do zmiany hasła zalogowanego użytkownika (wymaga starego hasła)
 - **Zarządzanie użytkownikami** — tabela wszystkich użytkowników z labelką "Ty" dla zalogowanego
@@ -254,6 +260,37 @@ CREATE TABLE matches (
 - **data_json** — pełne dane JSON (ustrukturyzowane wyniki, etapy, zawodnicy)
 - **created_at** — znacznik czasu dodania
 
+### Tabela: `rankings`
+
+```sql
+CREATE TABLE rankings (
+  id INTEGER PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+)
+```
+
+- **id** — unikalny identyfikator rankingu
+- **name** — nazwa grupy rankingowej
+- **created_at** — znacznik czasu utworzenia
+- **updated_at** — znacznik czasu ostatniej edycji
+
+### Tabela: `ranking_matches`
+
+```sql
+CREATE TABLE ranking_matches (
+  ranking_id INTEGER NOT NULL,
+  match_id INTEGER NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (ranking_id, match_id)
+)
+```
+
+- **ranking_id** — powiązanie z tabelą `rankings`
+- **match_id** — powiązanie z tabelą `matches`
+- **created_at** — znacznik czasu przypisania zawodów do rankingu
+
 ### Tabela: `users`
 
 ```sql
@@ -276,6 +313,10 @@ CREATE TABLE users (
 - `list_users()` — pobiera listę wszystkich użytkowników
 - `delete_user(user_id)` — usuwa użytkownika (zapobiega usunięciu ostatniego)
 - `change_password(user_id, password_hash)` — zmienia hasło
+- `list_rankings()` — zwraca listę rankingów z przypisanymi zawodami
+- `add_ranking(name, match_ids)` — tworzy ranking i przypisuje zawody
+- `update_ranking(ranking_id, name, match_ids)` — aktualizuje ranking i jego przypisania
+- `delete_ranking(ranking_id)` — usuwa pusty ranking
 
 ## API Routes
 
@@ -294,6 +335,9 @@ CREATE TABLE users (
 | `/admin/logout` | GET | Wylogowanie |
 | `/admin/upload` | POST | Wgranie pliku .cab |
 | `/admin/delete/<id>` | POST | Usunięcie zawodów |
+| `/admin/rankings` | POST | Dodanie rankingu |
+| `/admin/rankings/<id>` | POST | Edycja rankingu |
+| `/admin/rankings/<id>/delete` | POST | Usunięcie pustego rankingu |
 | `/admin/users` | GET | Lista użytkowników (API JSON) |
 | `/admin/users` | POST | Tworzenie użytkownika |
 | `/admin/users/<id>` | POST | Usunięcie użytkownika |

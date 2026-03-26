@@ -71,6 +71,28 @@ def init_db() -> None:
                 data_json   TEXT    NOT NULL
             )
         """)
+
+        # Utwórz tabelę rankings
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS rankings (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT    UNIQUE NOT NULL,
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
+        # Powiązanie rankingów z zawodami (grupy rankingowe)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ranking_matches (
+                ranking_id  INTEGER NOT NULL,
+                match_id    INTEGER NOT NULL,
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (ranking_id, match_id),
+                FOREIGN KEY (ranking_id) REFERENCES rankings(id) ON DELETE RESTRICT,
+                FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+            )
+        """)
         
         conn.commit()
         conn.close()
@@ -110,11 +132,34 @@ def save_match(result: dict) -> int:
 def list_matches() -> list[dict]:
     """Return all saved matches (without full data)."""
     conn = get_db()
+    # Pobierz metadane zawodów z rankingami
     rows = conn.execute(
-        "SELECT id, name, date, level, created_at FROM matches ORDER BY created_at DESC"
+        """
+        SELECT
+            m.id,
+            m.name,
+            m.date,
+            m.level,
+            m.created_at,
+            COALESCE(GROUP_CONCAT(r.name, ' || '), '') AS ranking_names,
+            COALESCE(GROUP_CONCAT(rm.ranking_id, ','), '') AS ranking_ids_str
+        FROM matches m
+        LEFT JOIN ranking_matches rm ON rm.match_id = m.id
+        LEFT JOIN rankings r ON r.id = rm.ranking_id
+        GROUP BY m.id
+        ORDER BY m.created_at DESC
+        """
     ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    
+    result = []
+    for r in rows:
+        d = dict(r)
+        # Konwertuj ranking_ids_str na listę liczb
+        d["ranking_ids"] = [int(x) for x in d["ranking_ids_str"].split(",") if x.strip()]
+        del d["ranking_ids_str"]
+        result.append(d)
+    return result
 
 
 def get_match(match_id: int) -> dict | None:
@@ -137,6 +182,185 @@ def delete_match(match_id: int) -> bool:
     deleted = cur.rowcount > 0
     conn.close()
     return deleted
+
+
+# ---------------------------------------------------------------------------
+# Rankings
+# ---------------------------------------------------------------------------
+
+def _normalize_match_ids(match_ids: list[str] | list[int] | None) -> list[int]:
+    values: list[int] = []
+    if not match_ids:
+        return values
+    for value in match_ids:
+        try:
+            values.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    return list(dict.fromkeys(values))
+
+
+def list_rankings() -> list[dict]:
+    """Return all rankings with attached match counts and names."""
+    conn = get_db()
+    rows = conn.execute(
+        """
+        SELECT
+            r.id,
+            r.name,
+            r.created_at,
+            r.updated_at,
+            COUNT(rm.match_id) AS match_count,
+            COALESCE(GROUP_CONCAT(m.name, ' || '), '') AS match_names
+        FROM rankings r
+        LEFT JOIN ranking_matches rm ON rm.ranking_id = r.id
+        LEFT JOIN matches m ON m.id = rm.match_id
+        GROUP BY r.id
+        ORDER BY r.created_at DESC, r.name COLLATE NOCASE
+        """
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_ranking(ranking_id: int) -> dict | None:
+    """Load a ranking together with assigned match ids."""
+    conn = get_db()
+    ranking_row = conn.execute(
+        "SELECT id, name, created_at, updated_at FROM rankings WHERE id = ?",
+        (ranking_id,),
+    ).fetchone()
+    if ranking_row is None:
+        conn.close()
+        return None
+
+    match_rows = conn.execute(
+        "SELECT match_id FROM ranking_matches WHERE ranking_id = ? ORDER BY created_at, match_id",
+        (ranking_id,),
+    ).fetchall()
+    conn.close()
+
+    result = dict(ranking_row)
+    result["match_ids"] = [row["match_id"] for row in match_rows]
+    result["match_count"] = len(result["match_ids"])
+    return result
+
+
+def add_ranking(name: str, match_ids: list[str] | list[int] | None = None) -> int:
+    """Create a ranking and attach selected matches."""
+    normalized_match_ids = _normalize_match_ids(match_ids)
+    conn = get_db()
+    cur = conn.execute("INSERT INTO rankings (name) VALUES (?)", (name,))
+    ranking_id = cur.lastrowid
+    if normalized_match_ids:
+        conn.executemany(
+            "INSERT OR IGNORE INTO ranking_matches (ranking_id, match_id) VALUES (?, ?)",
+            [(ranking_id, match_id) for match_id in normalized_match_ids],
+        )
+    conn.execute(
+        "UPDATE rankings SET updated_at = datetime('now') WHERE id = ?",
+        (ranking_id,),
+    )
+    conn.commit()
+    conn.close()
+    return ranking_id
+
+
+def update_ranking(ranking_id: int, name: str, match_ids: list[str] | list[int] | None = None) -> bool:
+    """Update ranking details and replace match assignments."""
+    normalized_match_ids = _normalize_match_ids(match_ids)
+    conn = get_db()
+    cur = conn.execute(
+        "UPDATE rankings SET name = ?, updated_at = datetime('now') WHERE id = ?",
+        (name, ranking_id),
+    )
+    if cur.rowcount == 0:
+        conn.close()
+        return False
+
+    conn.execute("DELETE FROM ranking_matches WHERE ranking_id = ?", (ranking_id,))
+    if normalized_match_ids:
+        conn.executemany(
+            "INSERT OR IGNORE INTO ranking_matches (ranking_id, match_id) VALUES (?, ?)",
+            [(ranking_id, match_id) for match_id in normalized_match_ids],
+        )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def ranking_match_count(ranking_id: int) -> int:
+    """Return number of matches assigned to a ranking."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT COUNT(*) AS c FROM ranking_matches WHERE ranking_id = ?",
+        (ranking_id,),
+    ).fetchone()
+    conn.close()
+    return int(row["c"]) if row else 0
+
+
+def delete_ranking(ranking_id: int) -> bool:
+    """Delete a ranking only when it has no assigned matches."""
+    if ranking_match_count(ranking_id) > 0:
+        return False
+
+    conn = get_db()
+    cur = conn.execute("DELETE FROM rankings WHERE id = ?", (ranking_id,))
+    conn.commit()
+    deleted = cur.rowcount > 0
+    conn.close()
+    return deleted
+
+
+def add_match_to_ranking(ranking_id: int, match_id: int) -> bool:
+    """Add a match to a ranking. Returns True if added (or if already assigned)."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT OR IGNORE INTO ranking_matches (ranking_id, match_id) VALUES (?, ?)",
+            (ranking_id, match_id),
+        )
+        conn.execute(
+            "UPDATE rankings SET updated_at = datetime('now') WHERE id = ?",
+            (ranking_id,),
+        )
+        conn.commit()
+        return True
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+
+def update_match_rankings(match_id: int, ranking_ids: list[str] | list[int] | None = None) -> bool:
+    """Replace all ranking assignments for a match with new ones."""
+    normalized_ranking_ids = _normalize_match_ids(ranking_ids)
+    conn = get_db()
+    try:
+        # Usuń wszystkie stare przypisania tego meczu
+        conn.execute("DELETE FROM ranking_matches WHERE match_id = ?", (match_id,))
+        
+        # Dodaj nowe przypisania
+        if normalized_ranking_ids:
+            conn.executemany(
+                "INSERT OR IGNORE INTO ranking_matches (ranking_id, match_id) VALUES (?, ?)",
+                [(ranking_id, match_id) for ranking_id in normalized_ranking_ids],
+            )
+        
+        # Zaktualizuj timestamp dla wszystkich rankingów
+        for ranking_id in normalized_ranking_ids:
+            conn.execute(
+                "UPDATE rankings SET updated_at = datetime('now') WHERE id = ?",
+                (ranking_id,),
+            )
+        
+        conn.commit()
+        return True
+    except Exception:
+        return False
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------

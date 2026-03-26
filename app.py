@@ -20,7 +20,25 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from winmss_results import (
     load_data, build_results, rank_competitors, add_percent_of_best
 )
-from database import init_db, save_match, list_matches, get_match, delete_match, add_user, verify_user, list_users, delete_user, change_password
+from database import (
+    init_db,
+    save_match,
+    list_matches,
+    get_match,
+    delete_match,
+    add_user,
+    verify_user,
+    list_users,
+    delete_user,
+    change_password,
+    list_rankings,
+    get_ranking,
+    add_ranking,
+    update_ranking,
+    delete_ranking,
+    add_match_to_ranking,
+    update_match_rankings,
+)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
@@ -66,11 +84,17 @@ def _prepare(cab_path: str) -> dict:
             {div: round(max(hfs), 4) for div, hfs in div_hfs.items()}
         )
 
+    # Wyodrębnij level z nazwy (szukaj "L1" lub "L2")
+    match_name = match_info.get("MatchName", "")
+    import re
+    level_match = re.search(r'L(\d+)', match_name)
+    level = int(level_match.group(1)) if level_match else int(match_info.get("MatchLevel", 1))
+    
     return {
         "match": {
-            "name":  match_info.get("MatchName", "(brak nazwy)"),
+            "name":  match_name if match_name else "(brak nazwy)",
             "date":  match_info.get("MatchDt", "")[:10],
-            "level": int(match_info.get("MatchLevel", 0)) + 1,
+            "level": level,
         },
         "stages": [
             {
@@ -226,28 +250,63 @@ def admin_logout():
 def admin_panel():
     matches = list_matches()
     users = list_users()
-    return render_template("admin.html", matches=matches, users=users)
+    rankings = list_rankings()
+    editing_ranking_id = request.args.get("edit_ranking_id", type=int)
+    editing_ranking = get_ranking(editing_ranking_id) if editing_ranking_id else None
+    return render_template(
+        "admin.html",
+        matches=matches,
+        users=users,
+        rankings=rankings,
+        editing_ranking=editing_ranking,
+    )
 
 
 @app.route("/admin/upload", methods=["POST"])
 @admin_required
 def admin_upload():
-    """Upload .cab z panelu admina."""
+    """Upload .cab z panelu admina oraz przypisanie do rankingu."""
     f = request.files.get("file")
+    ranking_id = request.form.get("ranking_id", type=int)
+    
     if not f or not f.filename:
-        return redirect(url_for("admin_panel"))
+        return redirect(url_for("admin_panel") + "?error=Nie+wybrano+pliku")
     if not f.filename.lower().endswith(".cab"):
-        return redirect(url_for("admin_panel"))
+        return redirect(url_for("admin_panel") + "?error=Plik+musi+mie%C4%87+rozszerzenie+.cab")
+    if not ranking_id:
+        return redirect(url_for("admin_panel") + "?error=Musisz+wybra%C4%87+ranking")
 
     tmp = tempfile.NamedTemporaryFile(suffix=".cab", delete=False)
     try:
         f.save(tmp.name)
         tmp.close()
         result = _prepare(tmp.name)
-        save_match(result)
+        match_id = save_match(result)
+        # Przypisz zawody do wybranego rankingu
+        add_match_to_ranking(ranking_id, match_id)
+    except Exception as exc:
+        return redirect(url_for("admin_panel") + f"?error=B%C5%82%C4%99d:+{str(exc)}")
     finally:
         os.unlink(tmp.name)
-    return redirect(url_for("admin_panel"))
+    return redirect(url_for("admin_panel") + "?success=Zawody+zaimportowane+i+przypisane+do+rankingu")
+
+
+@app.route("/admin/matches/assign-rankings", methods=["POST"])
+@admin_required
+def admin_assign_rankings():
+    """Update ranking assignments for a match."""
+    match_id = request.form.get("match_id", type=int)
+    ranking_ids = request.form.getlist("ranking_ids")
+    
+    if not match_id:
+        return redirect(url_for("admin_panel") + "?error=Brak+ID+zawodów")
+    
+    try:
+        update_match_rankings(match_id, ranking_ids)
+    except Exception as exc:
+        return redirect(url_for("admin_panel") + f"?error=B%C5%82%C4%99d:+{str(exc)}")
+    
+    return redirect(url_for("admin_panel") + "?success=Rankingi+zawodów+zaktualizowane")
 
 
 @app.route("/admin/delete/<int:match_id>", methods=["POST"])
@@ -255,6 +314,58 @@ def admin_upload():
 def admin_delete(match_id):
     delete_match(match_id)
     return redirect(url_for("admin_panel"))
+
+
+
+
+@app.route("/admin/rankings", methods=["POST"])
+@admin_required
+def admin_create_ranking():
+    name = request.form.get("name", "").strip()
+    match_ids = request.form.getlist("match_ids")
+
+    if not name:
+        return redirect(url_for("admin_panel", tab="rankings", error="Nazwa rankingu jest wymagana"))
+
+    try:
+        add_ranking(name, match_ids)
+    except Exception:
+        return redirect(url_for("admin_panel", tab="rankings", error="Nie udało się dodać rankingu"))
+
+    return redirect(url_for("admin_panel", tab="rankings", success="Ranking dodany"))
+
+
+@app.route("/admin/rankings/<int:ranking_id>", methods=["POST"])
+@admin_required
+def admin_update_ranking_route(ranking_id):
+    name = request.form.get("name", "").strip()
+    match_ids = request.form.getlist("match_ids")
+
+    if not name:
+        return redirect(url_for("admin_panel", tab="rankings", error="Nazwa rankingu jest wymagana"))
+
+    try:
+        updated = update_ranking(ranking_id, name, match_ids)
+    except Exception:
+        return redirect(url_for("admin_panel", tab="rankings", error="Nie udało się zapisać rankingu"))
+
+    if not updated:
+        return redirect(url_for("admin_panel", tab="rankings", error="Nie znaleziono rankingu"))
+
+    return redirect(url_for("admin_panel", tab="rankings", success="Ranking zapisany"))
+
+
+@app.route("/admin/rankings/<int:ranking_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_ranking_route(ranking_id):
+    ranking = get_ranking(ranking_id)
+    if ranking is None:
+        return redirect(url_for("admin_panel", tab="rankings", error="Nie znaleziono rankingu"))
+    if ranking["match_count"] > 0:
+        return redirect(url_for("admin_panel", tab="rankings", error="Nie można usunąć rankingu z przypisanymi zawodami"))
+    if not delete_ranking(ranking_id):
+        return redirect(url_for("admin_panel", tab="rankings", error="Nie udało się usunąć rankingu"))
+    return redirect(url_for("admin_panel", tab="rankings", success="Ranking usunięty"))
 
 
 @app.route("/admin/users", methods=["GET"])
