@@ -47,32 +47,46 @@ def get_db() -> sqlite3.Connection:
 
 def init_db() -> None:
     """Create tables if they don't exist."""
-    conn = get_db()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            username    TEXT    UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-        );
+    try:
+        conn = get_db()
         
-        CREATE TABLE IF NOT EXISTS matches (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT    NOT NULL,
-            date        TEXT,
-            level       INTEGER DEFAULT 1,
-            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-            data_json   TEXT    NOT NULL
-        );
-    """)
-    conn.commit()
-    conn.close()
+        # Utwórz tabelę users
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                username    TEXT    UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        
+        # Utwórz tabelę matches
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS matches (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT    NOT NULL,
+                date        TEXT,
+                level       INTEGER DEFAULT 1,
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                data_json   TEXT    NOT NULL
+            )
+        """)
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"✓ Baza danych zainicjalizowana: {DB_PATH}")
+        
+        # Dodaj domyślnego użytkownika jeśli baza jest nowa
+        if not list_users():
+            import hashlib
+            default_hash = hashlib.sha256(b"IP$c2023").hexdigest()
+            add_user("bartek", default_hash)
+            print(f"✓ Domyślny użytkownik 'bartek' utworzony")
     
-    # Initialize with default user if no users exist
-    if not list_users():
-        import hashlib
-        default_hash = hashlib.sha256(b"IP$c2023").hexdigest()
-        add_user("bartek", default_hash)
+    except Exception as e:
+        print(f"✗ Błąd inicjalizacji bazy: {e}")
+        raise
 
 
 def save_match(result: dict) -> int:

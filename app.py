@@ -93,6 +93,8 @@ def _prepare(cab_path: str) -> dict:
                 "squad":        c["squad"],
                 "is_disq":      c["is_disq"],
                 "total_points": c["total_points"],
+                "total_points_overall": c.get("total_points_overall", c["total_points"]),
+                "total_points_in_division": c.get("total_points_in_division", c["total_points"]),
                 "total_time":   round(c["total_time"], 2),
                 "overall_hf":   round(c["overall_hf"], 4),
                 "pct":          round(c.get("pct", 0.0), 2),

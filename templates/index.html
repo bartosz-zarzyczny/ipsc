@@ -492,13 +492,17 @@ function renderOverall(list) {
   // Czy aktywny jest filtr dywizji?
   const divFilter = document.getElementById('f-div').value;
 
+  // Gdy filtr dywizji aktywny → punkty per-division; bez filtra → globalne
+  const ptsField = divFilter ? 'total_points_in_division' : 'total_points_overall';
+  const getPoints = c => c[ptsField] ?? c.total_points;
+
   // Najlepsze punkty w aktualnie filtrowanej liście (do obliczenia % lidera)
-  const bestPts = data.filter(c => !c.is_disq).reduce((mx, c) => Math.max(mx, c.total_points), 0);
+  const bestPts = data.filter(c => !c.is_disq).reduce((mx, c) => Math.max(mx, getPoints(c)), 0);
 
   // Miejsce w dywizji (obliczane tylko gdy filtr dywizji aktywny)
   const divRankMap = {};
   if (divFilter) {
-    const activeSorted = data.filter(c => !c.is_disq).sort((a,b) => b.total_points - a.total_points);
+    const activeSorted = [...data.filter(c => !c.is_disq)].sort((a,b) => getPoints(b) - getPoints(a));
     activeSorted.forEach((c, i) => { divRankMap[c.comp_id] = i + 1; });
   }
 
@@ -511,9 +515,10 @@ function renderOverall(list) {
 
   // Body
   document.getElementById('overall-body').innerHTML = data.map(c => {
+    const cPts = getPoints(c);
     const rc  = c.is_disq ? 'tr-dsq' : c.rank===1 ? 'tr-1' : c.rank===2 ? 'tr-2' : c.rank===3 ? 'tr-3' : '';
     const rnk = c.is_disq ? '<span class="badge bg-danger">DSQ</span>' : rankEmoji(c.rank);
-    const localPct = bestPts > 0 ? c.total_points / bestPts * 100 : 0;
+    const localPct = bestPts > 0 ? cPts / bestPts * 100 : 0;
     const pct = c.is_disq ? '-' : `<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${localPct}%"></div></div><span>${localPct.toFixed(1)}%</span></div>`;
     const hf  = c.is_disq ? '-' : `<span class="hf">${c.overall_hf.toFixed(4)}</span>`;
     const fem = c.female   ? ' <i class="bi bi-gender-female text-danger" title="Kobieta"></i>' : '';
@@ -528,7 +533,7 @@ function renderOverall(list) {
       <td>${esc(c.name)}${fem}</td>
       <td>${divBadge(c.division)}</td>
       <td>${catBadge(c.category)}</td>
-      <td>${c.is_disq ? '-' : c.total_points.toFixed(4)}</td>
+      <td>${c.is_disq ? '-' : cPts.toFixed(4)}</td>
       <td>${c.is_disq ? '-' : c.total_time.toFixed(2)+'s'}</td>
       <td>${hf}</td>
       <td>${pct}</td>
@@ -591,9 +596,9 @@ function renderDivisions(list) {
   let html = '';
   for (const div of Object.keys(byDiv).sort()) {
     const comps  = byDiv[div];
-    const active = comps.filter(c => !c.is_disq).sort((a,b) => b.total_points - a.total_points);
+    const active = comps.filter(c => !c.is_disq).sort((a,b) => (b.total_points_in_division || b.total_points) - (a.total_points_in_division || a.total_points));
     const disq   = comps.filter(c => c.is_disq);
-    const bestPts = active[0]?.total_points || 0;
+    const bestPts = active[0]?.total_points_in_division || active[0]?.total_points || 0;
 
     html += `<div class="mb-4">
       <div class="d-flex align-items-center gap-2 px-1 py-2 border-bottom">
@@ -610,14 +615,14 @@ function renderDivisions(list) {
         <tbody>`;
 
     active.forEach((c, i) => {
-      const divPct = bestPts > 0 ? (c.total_points / bestPts * 100).toFixed(2) : '–';
+      const divPct = bestPts > 0 ? ((c.total_points_in_division || c.total_points) / bestPts * 100).toFixed(2) : '–';
       const rc = i===0?'tr-1':i===1?'tr-2':i===2?'tr-3':'';
       html += `<tr class="${rc}">
         <td>${rankEmoji(i+1)}</td>
         <td class="text-muted">${c.rank}</td>
         <td>${esc(c.name)}${c.female?' <i class="bi bi-gender-female text-danger"></i>':''}</td>
         <td>${catBadge(c.category)}</td>
-        <td>${c.total_points.toFixed(4)}</td>
+        <td>${(c.total_points_in_division || c.total_points).toFixed(4)}</td>
         <td>${c.total_time.toFixed(2)}s</td>
         <td><span class="hf">${c.overall_hf.toFixed(4)}</span></td>
         <td><div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${c.pct}%"></div></div>${c.pct.toFixed(1)}%</div></td>
