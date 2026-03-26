@@ -234,30 +234,64 @@ def build_results(data: dict) -> tuple[dict, list, list]:
             "overall_hf":  overall_hf,
         })
 
-    # --- Przelicz punkty IPSC: pkt = (HF zawodnika / najlepszy HF w torze) × max pkt toru ---
+    # --- Przelicz punkty IPSC: dwa rodzaje ---
+    # 1. Per-division: pkt = (HF / best HF w DYWIZJI) × max pkt
+    # 2. Overall (globalne): pkt = (HF / best HF GLOBALNIE) × max pkt
     n_stages = len(stages)
-    best_hf_per_stage = [0.0] * n_stages
-    for i in range(n_stages):
-        for c in competitors:
+    
+    # Najlepszy HF globalnie na każdym torze
+    best_hf_per_stage_global = [0.0] * n_stages
+    for c in competitors:
+        for i in range(n_stages):
             if i < len(c["stage_scores"]):
                 sc = c["stage_scores"][i]
-                if sc and not sc["disq"] and not c["is_disq"] and sc["hf"] > best_hf_per_stage[i]:
-                    best_hf_per_stage[i] = sc["hf"]
-
+                if sc and not sc["disq"] and not c["is_disq"] and sc["hf"] > best_hf_per_stage_global[i]:
+                    best_hf_per_stage_global[i] = sc["hf"]
+    
+    # Najlepszy HF per-dywizję na każdym torze
+    best_hf_per_stage_div = defaultdict(lambda: [0.0] * n_stages)
+    for div in set(c["division"] for c in competitors):
+        div_competitors = [c for c in competitors if c["division"] == div]
+        for i in range(n_stages):
+            for c in div_competitors:
+                if i < len(c["stage_scores"]):
+                    sc = c["stage_scores"][i]
+                    if sc and not sc["disq"] and not c["is_disq"] and sc["hf"] > best_hf_per_stage_div[div][i]:
+                        best_hf_per_stage_div[div][i] = sc["hf"]
+    
+    # Wylicz obie wersje punktów dla każdego zawodnika
     for c in competitors:
-        total_match_pts = 0.0
+        total_pts_overall = 0.0
+        total_pts_in_division = 0.0
+        div = c["division"]
         for i in range(n_stages):
             if i < len(c["stage_scores"]):
                 sc = c["stage_scores"][i]
                 if sc and not sc["disq"]:
                     max_pts = int(stages[i].get("MaxPoints", 0))
-                    if best_hf_per_stage[i] > 0:
-                        stage_pts = (sc["hf"] / best_hf_per_stage[i]) * max_pts
+                    
+                    # Punkty Overall (globalne)
+                    best_global_hf = best_hf_per_stage_global[i]
+                    if best_global_hf > 0:
+                        stage_pts_overall = (sc["hf"] / best_global_hf) * max_pts
                     else:
-                        stage_pts = 0.0
-                    sc["pts"] = round(stage_pts, 4)
-                    total_match_pts += stage_pts
-        c["total_points"] = round(total_match_pts, 4)
+                        stage_pts_overall = 0.0
+                    total_pts_overall += stage_pts_overall
+                    
+                    # Punkty w dywizji
+                    best_div_hf = best_hf_per_stage_div[div][i]
+                    if best_div_hf > 0:
+                        stage_pts_in_div = (sc["hf"] / best_div_hf) * max_pts
+                    else:
+                        stage_pts_in_div = 0.0
+                    total_pts_in_division += stage_pts_in_div
+                    
+                    # Zdominuj: dla wyświetlenia zwracamy per-division (poprawne dla IPSC)
+                    sc["pts"] = round(stage_pts_in_div, 4)
+        
+        c["total_points"] = round(total_pts_overall, 4)  # Globalne - używane do rankingu
+        c["total_points_overall"] = round(total_pts_overall, 4)  # Globalne dla Overall tab
+        c["total_points_in_division"] = round(total_pts_in_division, 4)  # Per-division dla Dywizje tab
 
     return match_info, stages, competitors
 
