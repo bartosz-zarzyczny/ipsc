@@ -480,10 +480,24 @@ def admin_get_competitors(match_id):
     # Zwróć tylko potrzebne pola
     result = []
     for c in competitors:
+        # Jeśli firstname/lastname są puste, rozbij name
+        firstname = c.get("firstname", "").strip()
+        lastname = c.get("lastname", "").strip()
+        
+        if not firstname or not lastname:
+            # Rozbij name "Lastname Firstname" na części
+            name = c.get("name", "").strip()
+            if name and not firstname and not lastname:
+                parts = name.rsplit(" ", 1)  # Rozbij na ostatnią spację
+                if len(parts) == 2:
+                    lastname, firstname = parts
+                else:
+                    lastname = parts[0]
+        
         result.append({
             "comp_id": c.get("comp_id"),
-            "firstname": c.get("firstname", ""),
-            "lastname": c.get("lastname", ""),
+            "firstname": firstname,
+            "lastname": lastname,
             "name": c.get("name", ""),
             "division": c.get("division", ""),
             "category": c.get("category", ""),
