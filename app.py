@@ -112,6 +112,8 @@ def _prepare(cab_path: str) -> dict:
             {
                 "rank":         c["rank"],
                 "comp_id":      c["comp_id"],
+                "firstname":    c["firstname"],
+                "lastname":     c["lastname"],
                 "name":         f"{c['lastname']} {c['firstname']}",
                 "division":     c["division"],
                 "div_id":       c["div_id"],
