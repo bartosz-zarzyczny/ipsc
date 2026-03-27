@@ -474,3 +474,50 @@ def change_password(user_id: int, password_hash: str) -> bool:
     conn.close()
     return updated
 
+
+# ---------------------------------------------------------------------------
+# Competitor management
+# ---------------------------------------------------------------------------
+
+def update_competitor_name(match_id: int, comp_id: str, firstname: str, lastname: str) -> bool:
+    """Update competitor's first and last name in a match. Returns True if successful."""
+    conn = get_db()
+    try:
+        # Pobierz dane meczu
+        row = conn.execute(
+            "SELECT data_json FROM matches WHERE id = ?", (match_id,)
+        ).fetchone()
+        
+        if row is None:
+            return False
+        
+        # Załaduj JSON
+        data = json.loads(row["data_json"])
+        
+        # Znajdź i zaktualizuj zawodnika
+        found = False
+        for competitor in data.get("competitors", []):
+            if str(competitor.get("comp_id")) == str(comp_id):
+                competitor["firstname"] = firstname.strip()
+                competitor["lastname"] = lastname.strip()
+                # Zaktualizuj połączone imię i nazwisko
+                competitor["name"] = f"{competitor['lastname']} {competitor['firstname']}"
+                found = True
+                break
+        
+        if not found:
+            return False
+        
+        # Zapisz zmieniony JSON
+        conn.execute(
+            "UPDATE matches SET data_json = ? WHERE id = ?",
+            (json.dumps(data, ensure_ascii=False), match_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Błąd aktualizacji zawodnika: {e}")
+        conn.close()
+        return False
+
