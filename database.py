@@ -521,3 +521,43 @@ def update_competitor_name(match_id: int, comp_id: str, firstname: str, lastname
         conn.close()
         return False
 
+
+def delete_competitor_from_match(match_id: int, comp_id: str) -> bool:
+    """Delete a competitor from a match. Returns True if successful."""
+    conn = get_db()
+    try:
+        # Pobierz dane meczu
+        row = conn.execute(
+            "SELECT data_json FROM matches WHERE id = ?", (match_id,)
+        ).fetchone()
+        
+        if row is None:
+            return False
+        
+        # Załaduj JSON
+        data = json.loads(row["data_json"])
+        
+        # Znajdź i usuń zawodnika
+        original_count = len(data.get("competitors", []))
+        data["competitors"] = [
+            c for c in data.get("competitors", [])
+            if str(c.get("comp_id")) != str(comp_id)
+        ]
+        
+        if len(data["competitors"]) == original_count:
+            # Zawodnik nie znaleziony
+            return False
+        
+        # Zapisz zmieniony JSON
+        conn.execute(
+            "UPDATE matches SET data_json = ? WHERE id = ?",
+            (json.dumps(data, ensure_ascii=False), match_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Błąd usuwania zawodnika: {e}")
+        conn.close()
+        return False
+
