@@ -1,4 +1,4 @@
-# IPSC — WinMSS Results Viewer
+# IPSC — IPSC Results
 
 A tool for extracting and viewing IPSC shooting competition results from WinMSS `.cab` files.
 
