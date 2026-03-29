@@ -98,6 +98,26 @@
     .charlie { color: #b7950b; font-weight: 600; }
     .delta   { color: #c0392b; }
 
+    /* truncated match name */
+    .match-name-truncated { 
+      display: inline-block;
+      max-width: 65px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: help;
+    }
+
+    /* truncated competitor name */
+    .competitor-name-truncated {
+      display: inline-block;
+      max-width: 200px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: help;
+    }
+
     /* row expand cursor */
     .expandable { cursor: pointer; }
 
@@ -310,6 +330,17 @@ function uploadErr(msg) {
 ═══════════════════════════════════════════════════════════════════════════ */
 function switchMainTab(tabName) {
   G.mainTab = tabName;
+  G.data = null;
+  G.rankingInfo = null;
+  G.rankingMatches = [];
+  G.stageIdx = 0;
+  G.sort = { col: 'rank', dir: 'asc' };
+  
+  // Resetuj filtry
+  const fDiv = document.getElementById('f-div');
+  const fCat = document.getElementById('f-cat');
+  if (fDiv) fDiv.value = '';
+  if (fCat) fCat.value = '';
   
   // Hide all tabs
   document.getElementById('tab-ranking').classList.add('d-none');
@@ -321,6 +352,13 @@ function switchMainTab(tabName) {
   // Update button states
   document.getElementById('tbtn-ranking').classList.toggle('active', tabName === 'ranking');
   document.getElementById('tbtn-matches').classList.toggle('active', tabName === 'matches');
+  
+  // Załaduj listę zawodów/rankingów
+  if (tabName === 'matches') {
+    loadMatchList();
+  } else if (tabName === 'ranking') {
+    loadRankingList();
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -410,6 +448,7 @@ function resetUI() {
   // clear dynamic division/cat filter options
   ['f-div','f-cat'].forEach(id => {
     const sel = document.getElementById(id);
+    sel.value = '';  // Reset selected value
     while (sel.options.length > 1) sel.remove(1);
   });
   // Show tab buttons again
@@ -424,6 +463,7 @@ function resetUI() {
 ═══════════════════════════════════════════════════════════════════════════ */
 function initResults(data) {
   G.data    = data;
+  G.rankingInfo = null;  // Reset ranking info when loading a new match
   G.sort    = { col: 'rank', dir: 'asc' };
   G.stageIdx = 0;
 
@@ -454,6 +494,10 @@ function initResults(data) {
     opt.value = opt.textContent = cat;
     fcat.appendChild(opt);
   });
+
+  // Set filter onchange handlers to use applyFilters (not renderRankingTable)
+  fdiv.onchange = () => applyFilters();
+  fcat.onchange = () => applyFilters();
 
   // Stage buttons
   const sb = document.getElementById('stage-btns');
@@ -600,6 +644,12 @@ function initRankingResults(rankingData) {
 }
 
 function renderRankingTable() {
+  // Defensywna kontrola - G.data powinno być tablicą dla rankingu
+  if (!Array.isArray(G.data)) {
+    console.error('renderRankingTable: G.data is not an array', G.data);
+    return;
+  }
+  
   // Get selected division
   const selectedDiv = document.getElementById('f-div').value;
   
@@ -616,28 +666,29 @@ function renderRankingTable() {
   document.getElementById('f-count').textContent = `${filtered.length} zawodników`;
 
   // Build header with match names
-  let headerHTML = '<th style="width: 60px">#</th>';
-  headerHTML += '<th style="min-width: 180px">Zawodnik</th>';
-  
-  G.rankingMatches.forEach(m => {
-    headerHTML += `<th style="text-align: center; min-width: 90px; font-size: 0.85rem" title="${esc(m.name)}">
-      ${esc(m.name)}
-    </th>`;
-  });
+  let headerHTML = '<th style="width: 30px; text-align: center; padding: 7px 2px !important">#</th>';
+  headerHTML += '<th style="width: 200px">Zawodnik</th>';
   
   const topMatchesCount = G.rankingInfo.topMatchesCount;
-  const topLabel = topMatchesCount > 0 ? ` (top ${topMatchesCount})` : ' (wszystkie)';
-  headerHTML += `<th style="text-align: center; font-weight: bold; min-width: 100px">Razem${topLabel}</th>`;
+  const totalMatches = G.rankingMatches.length;
+  const topLabel = topMatchesCount > 0 ? ` (najlepsze ${topMatchesCount} z ${totalMatches})` : ' (wszystkie)';
+  headerHTML += `<th style="text-align: center; font-weight: bold; width: 180px">Razem${topLabel}</th>`;
+  
+  G.rankingMatches.forEach(m => {
+    headerHTML += `<th style="text-align: center; width: 75px; font-size: 0.85rem" title="${esc(m.name)}">
+      <span class="match-name-truncated">${esc(m.name)}</span>
+    </th>`;
+  });
   
   document.getElementById('overall-head').innerHTML = headerHTML;
 
   // Build body rows
-  let bodyHTML = filtered.map(c => {
-    const rowClass = c.rank === 1 ? 'tr-1' : c.rank === 2 ? 'tr-2' : c.rank === 3 ? 'tr-3' : '';
+  let bodyHTML = filtered.map((c, index) => {
+    const rowClass = index === 0 ? 'tr-1' : index === 1 ? 'tr-2' : index === 2 ? 'tr-3' : '';
     let row = `<tr class="${rowClass}">
-      <td class="fw-bold">${c.rank}</td>
-      <td>
-        <div>${esc(c.name)}${c.female ? ' <i class="bi bi-gender-female text-danger"></i>' : ''}</div>
+      <td class="fw-bold" style="width: 30px; text-align: center; padding: 6px 2px">${index + 1}</td>
+      <td title="${esc(c.name)}">
+        <div><span class="competitor-name-truncated">${esc(c.name)}</span>${c.female ? ' <i class="bi bi-gender-female text-danger"></i>' : ''}</div>
         <div class="small text-muted">${divBadge(c.division)}</div>
       </td>`;
     
@@ -715,26 +766,32 @@ function getFiltered() {
 function applyFilters() {
   if (!G.data) return;
   
-  // If displaying ranking, update the ranking table
-  if (G.rankingInfo) {
+  // Określ typ danych na podstawie struktury G.data
+  const isRanking = Array.isArray(G.data);
+  const isMatch = G.data.competitors && typeof G.data === 'object';
+  
+  if (isRanking && G.rankingInfo) {
+    // To ranking - render ranking table
     renderRankingTable();
     return;
   }
   
-  const filtered = getFiltered();
-  document.getElementById('f-count').textContent =
-    filtered.length === G.data.competitors.length
-      ? `${filtered.length} zawodników`
-      : `${filtered.length} / ${G.data.competitors.length}`;
+  if (isMatch) {
+    // To zwykły match - render normal view
+    const filtered = getFiltered();
+    document.getElementById('f-count').textContent =
+      filtered.length === G.data.competitors.length
+        ? `${filtered.length} zawodników`
+        : `${filtered.length} / ${G.data.competitors.length}`;
 
-  // Gdy filtr dywizji aktywny → domyślnie sortuj wg miejsca w dywizji rosnąco
-  const divFilter = document.getElementById('f-div').value;
-  if (divFilter && G.sort.col === 'rank') { G.sort.col = 'div_rank'; G.sort.dir = 'asc'; }
-  if (!divFilter && G.sort.col === 'div_rank') { G.sort.col = 'rank'; G.sort.dir = 'asc'; }
+    const divFilter = document.getElementById('f-div').value;
+    if (divFilter && G.sort.col === 'rank') { G.sort.col = 'div_rank'; G.sort.dir = 'asc'; }
+    if (!divFilter && G.sort.col === 'div_rank') { G.sort.col = 'rank'; G.sort.dir = 'asc'; }
 
-  if (G.tab === 'overall')   renderOverall(filtered);
-  if (G.tab === 'divisions') renderDivisions(filtered);
-  if (G.tab === 'stages')    renderStage(G.stageIdx, filtered);
+    if (G.tab === 'overall')   renderOverall(filtered);
+    if (G.tab === 'divisions') renderDivisions(filtered);
+    if (G.tab === 'stages')    renderStage(G.stageIdx, filtered);
+  }
 }
 
 function doSort(col) {
@@ -805,7 +862,12 @@ function renderOverall(list) {
     activeSorted.forEach((c, i) => { divRankMap[c.comp_id] = i + 1; });
   }
 
-  const data = sorted(list, divRankMap);
+  let data = sorted(list, divRankMap);
+
+  // Przefiltruj dane na dywizję jeśli jest aktywny filtr
+  if (divFilter) {
+    data = data.filter(c => c.division === divFilter);
+  }
 
   // Najlepsze punkty w aktualnie filtrowanej liście (do obliczenia % lidera)
   const bestPts = data.filter(c => !c.is_disq).reduce((mx, c) => Math.max(mx, getPoints(c)), 0);
@@ -814,25 +876,20 @@ function renderOverall(list) {
   const colsHtml = COLS.map(c =>
     `<th onclick="doSort('${c.key}')" title="${c.title}">${c.label}${sortArrow(c.key)}</th>`
   );
-  if (divFilter) colsHtml.splice(1, 0, `<th onclick="doSort('div_rank')" title="Miejsce w dywizji" style="cursor:pointer">#&nbsp;Dyw.${sortArrow('div_rank')}</th>`);
   document.getElementById('overall-head').innerHTML = colsHtml.join('') + '<th title="Rozwiń szczegóły torów"><i class="bi bi-chevron-down"></i></th>';
 
   // Body
-  document.getElementById('overall-body').innerHTML = data.map(c => {
+  document.getElementById('overall-body').innerHTML = data.map((c, index) => {
     const cPts = getPoints(c);
-    const rc  = c.is_disq ? 'tr-dsq' : c.rank===1 ? 'tr-1' : c.rank===2 ? 'tr-2' : c.rank===3 ? 'tr-3' : '';
-    const rnk = c.is_disq ? '<span class="badge bg-danger">DSQ</span>' : rankEmoji(c.rank);
+    const rc  = c.is_disq ? 'tr-dsq' : index === 0 ? 'tr-1' : index === 1 ? 'tr-2' : index === 2 ? 'tr-3' : '';
+    const rnk = c.is_disq ? '<span class="badge bg-danger">DSQ</span>' : rankEmoji(index + 1);
     const localPct = bestPts > 0 ? cPts / bestPts * 100 : 0;
     const pct = c.is_disq ? '-' : `<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${localPct}%"></div></div><span>${localPct.toFixed(1)}%</span></div>`;
     const hf  = c.is_disq ? '-' : `<span class="hf">${c.overall_hf.toFixed(4)}</span>`;
     const fem = c.female   ? ' <i class="bi bi-gender-female text-danger" title="Kobieta"></i>' : '';
 
-    const divRankCell = divFilter
-      ? `<td>${c.is_disq ? '<span class="badge bg-danger">DSQ</span>' : rankEmoji(divRankMap[c.comp_id])}</td>`
-      : '';
     return `<tr class="${rc} expandable" data-uid="${c.comp_id}" onclick="toggleDetail(this,${c.comp_id})">
       <td>${rnk}</td>
-      ${divRankCell}
       <td class="text-muted">${c.comp_id}</td>
       <td>${esc(c.name)}${fem}</td>
       <td>${divBadge(c.division)}</td>
