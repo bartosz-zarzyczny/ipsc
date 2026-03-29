@@ -630,9 +630,16 @@ function initRankingResults(rankingData) {
   });
   fdiv.onchange = () => renderRankingTable();
 
-  // Hide filters for categories and stages
-  document.getElementById('f-cat').innerHTML = '<option value="">— wszystkie kategorie —</option>';
-  document.getElementById('f-cat').onchange = () => renderRankingTable();
+  // Populate category filter with available categories
+  const fcat = document.getElementById('f-cat');
+  fcat.innerHTML = '<option value="">— wszystkie kategorie —</option>';
+  const categories = [...new Set(merged.map(c => c.category).filter(Boolean))].sort();
+  categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = opt.textContent = cat;
+    fcat.appendChild(opt);
+  });
+  fcat.onchange = () => renderRankingTable();
   document.getElementById('stage-btns').innerHTML = '';
 
   // Hide tab bar for ranking
@@ -650,13 +657,17 @@ function renderRankingTable() {
     return;
   }
   
-  // Get selected division
+  // Get selected division and category
   const selectedDiv = document.getElementById('f-div').value;
+  const selectedCat = document.getElementById('f-cat').value;
   
-  // Filter by division
+  // Filter by division and category
   let filtered = G.data;
   if (selectedDiv) {
-    filtered = G.data.filter(c => c.division === selectedDiv);
+    filtered = filtered.filter(c => c.division === selectedDiv);
+  }
+  if (selectedCat) {
+    filtered = filtered.filter(c => c.category === selectedCat);
   }
   
   // Sort by rank (already sorted, but filter may change order)
@@ -716,7 +727,7 @@ function renderRankingTable() {
     return row;
   }).join('');
 
-  document.getElementById('overall-body').innerHTML = bodyHTML || '<tr><td colspan="100" class="text-center text-muted py-4">Brak wyników dla wybranej dywizji</td></tr>';
+  document.getElementById('overall-body').innerHTML = bodyHTML || '<tr><td colspan="100" class="text-center text-muted py-4">Brak wyników dla wybranych filtrów</td></tr>';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
