@@ -40,6 +40,7 @@ from database import (
     add_match_to_ranking,
     update_match_rankings,
     update_match_multiplier,
+    update_match_level,
     update_competitor_name,
     delete_competitor_from_match,
 )
@@ -88,7 +89,7 @@ def _prepare(cab_path: str) -> dict:
             {div: round(max(hfs), 4) for div, hfs in div_hfs.items()}
         )
 
-    # Wyodrębnij level z nazwy (szukaj "L1", "L2", "L I", "L II", "LEVEL 1", itd.)
+    # Wyodrębnij level z nazwy (szukaj różnych formatów)
     match_name = match_info.get("MatchName", "")
     import re
     
@@ -108,26 +109,14 @@ def _prepare(cab_path: str) -> dict:
     
     level = None
     
-    # Spróbuj znaleźć wzory: L1, L2, L3, itd.
-    m = re.search(r'\bL\s*(\d+)\b', match_name, re.IGNORECASE)
+    # Spróbuj znaleźć wzory w tej kolejności (od Most specific do least specific):
+    
+    # 1. LEVEL 1, LEVEL 2, itd. (słowo + cyfra arabska)
+    m = re.search(r'\bLEVEL\s+(\d+)\b', match_name, re.IGNORECASE)
     if m:
         level = int(m.group(1))
     
-    # Spróbuj znaleźć cyfry rzymskie: L I, L II, L III, itd.
-    if not level:
-        m = re.search(r'\bL\s+([IVX]+)\b', match_name, re.IGNORECASE)
-        if m:
-            roman_level = roman_to_int(m.group(1))
-            if roman_level:
-                level = roman_level
-    
-    # Spróbuj znaleźć wzory: LEVEL 1, LEVEL 2, itd.
-    if not level:
-        m = re.search(r'\bLEVEL\s+(\d+)\b', match_name, re.IGNORECASE)
-        if m:
-            level = int(m.group(1))
-    
-    # Spróbuj znaleźć wzory: LEVEL I, LEVEL II, itd.
+    # 2. LEVEL I, LEVEL II, itd. (słowo + cyfra rzymska)
     if not level:
         m = re.search(r'\bLEVEL\s+([IVX]+)\b', match_name, re.IGNORECASE)
         if m:
@@ -135,7 +124,21 @@ def _prepare(cab_path: str) -> dict:
             if roman_level:
                 level = roman_level
     
-    # Jeśli nie znalazł w nazwie, użyj wartości domyślnej z danych
+    # 3. L1, L2, L3, itd. (litera L + cyfra, unikając LEVEL)
+    if not level:
+        m = re.search(r'\bL\s*(\d+)(?!\w)', match_name, re.IGNORECASE)
+        if m and not match_name[m.start():m.start()+5].upper().startswith('LEVEL'):
+            level = int(m.group(1))
+    
+    # 4. L I, L II, L III, itd. (litera + cyfra rzymska)
+    if not level:
+        m = re.search(r'\bL\s+([IVX]+)\b', match_name, re.IGNORECASE)
+        if m and not match_name[m.start():m.start()+5].upper().startswith('LEVEL'):
+            roman_level = roman_to_int(m.group(1))
+            if roman_level:
+                level = roman_level
+    
+    # 5. Jeśli nie znalazł w nazwie, użyj wartości z danych
     if not level:
         level = int(match_info.get("MatchLevel", 1))
     
@@ -367,6 +370,32 @@ def admin_upload():
     return redirect(url_for("admin_panel") + "?success=Zawody+zaimportowane+i+przypisane+do+rankingu")
 
 
+@app.route("/admin/matches/update", methods=["POST"])
+@admin_required
+def admin_update_match():
+    """Update match level, ranking assignments and multiplier."""
+    match_id = request.form.get("match_id", type=int)
+    level = request.form.get("level", type=int) or 1
+    ranking_ids = request.form.getlist("ranking_ids")
+    multiplier = request.form.get("multiplier", type=float) or 1.0
+    
+    if not match_id:
+        return redirect(url_for("admin_panel") + "?error=Brak+ID+zawodów")
+    
+    try:
+        # Aktualizuj level
+        update_match_level(match_id, level)
+        
+        # Aktualizuj ranking assignments i multiplier
+        update_match_rankings(match_id, ranking_ids)
+        update_match_multiplier(match_id, multiplier)
+    except Exception as exc:
+        return redirect(url_for("admin_panel") + f"?error=B%C5%82%C4%99d:+{str(exc)}")
+    
+    return redirect(url_for("admin_panel") + "?success=Zawody+zaktualizowane")
+
+
+# Zachowaj stary endpoint dla kompatybilności
 @app.route("/admin/matches/assign-rankings", methods=["POST"])
 @admin_required
 def admin_assign_rankings():

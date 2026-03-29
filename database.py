@@ -409,6 +409,22 @@ def update_match_multiplier(match_id: int, multiplier: float = 1.0) -> bool:
         conn.close()
 
 
+def update_match_level(match_id: int, level: int = 1) -> bool:
+    """Update level for a match."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE matches SET level = ? WHERE id = ?",
+            (max(0, level), match_id),
+        )
+        conn.commit()
+        return True
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+
 
 # ---------------------------------------------------------------------------
 # User management
