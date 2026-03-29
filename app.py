@@ -41,6 +41,7 @@ from database import (
     update_match_rankings,
     update_match_multiplier,
     update_competitor_name,
+    delete_competitor_from_match,
 )
 
 app = Flask(__name__)
@@ -523,6 +524,16 @@ def admin_update_competitor(match_id):
     
     if update_competitor_name(match_id, comp_id, firstname, lastname):
         return jsonify({"ok": True, "message": "Zawodnik zaktualizowany"})
+    else:
+        return jsonify({"error": "Nie znaleziono zawodnika"}), 404
+
+
+@app.route("/admin/api/competitors/<int:match_id>/<comp_id>", methods=["DELETE"])
+@admin_required
+def admin_delete_competitor(match_id, comp_id):
+    """Delete a competitor from a match."""
+    if delete_competitor_from_match(match_id, comp_id):
+        return jsonify({"ok": True, "message": "Zawodnik usunięty"})
     else:
         return jsonify({"error": "Nie znaleziono zawodnika"}), 404
 

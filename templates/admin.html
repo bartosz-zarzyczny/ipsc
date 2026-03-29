@@ -497,6 +497,10 @@
                   onclick="saveCompetitor('${matchId}', '${c.comp_id}')">
             <i class="bi bi-check-lg"></i> Zapisz
           </button>
+          <button type="button" class="btn btn-sm btn-danger" 
+                  onclick="deleteCompetitor('${matchId}', '${c.comp_id}', '${(c.firstname + ' ' + c.lastname).replace(/'/g, '')}')">
+            <i class="bi bi-trash"></i> Usuń
+          </button>
         </td>
       </tr>
     `).join('');
@@ -545,6 +549,35 @@
     } catch (err) {
       console.error('Błąd:', err);
       alert('Błąd podczas zapisywania');
+    }
+  }
+  
+  async function deleteCompetitor(matchId, compId, compName) {
+    if (!confirm(`Czy na pewno usunąć zawodnika "${compName}"?`)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/admin/api/competitors/${matchId}/${compId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        alert(`Błąd: ${data.error || 'Nie udało się usunąć zawodnika'}`);
+        return;
+      }
+      
+      alert('Zawodnik usunięty');
+      // Odśwież listę zawodników
+      competitorsMatchSelect.dispatchEvent(new Event('change'));
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Błąd podczas usuwania');
     }
   }
   

@@ -222,12 +222,7 @@
     <div class="card shadow-sm mb-0 rounded-bottom-0">
       <div class="filter-bar px-3 py-2">
         <div class="row g-2 align-items-center">
-          <div class="col-md-4">
-            <div class="input-group input-group-sm">
-              <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-              <input type="text" class="form-control" id="f-search" placeholder="Szukaj zawodnika…" oninput="applyFilters()">
-            </div>
-          </div>
+          
           <div class="col-md-3">
             <select class="form-select form-select-sm" id="f-div" onchange="applyFilters()">
               <option value="">Wszystkie dywizje</option>
@@ -677,10 +672,7 @@ function renderRankingTable() {
    PODIUM CARDS
 ═══════════════════════════════════════════════════════════════════════════ */
 function renderPodium(data) {
-  const icons = ['🥇','🥈','🥉'];
-  const css   = ['p1','p2','p3'];
   const active = data.competitors.filter(c => !c.is_disq);
-  const top3   = [1,2,3].map(r => active.find(c => c.rank === r)).filter(Boolean);
 
   const dsqCount  = data.competitors.filter(c => c.is_disq).length;
   const divCounts = {};
@@ -689,24 +681,8 @@ function renderPodium(data) {
     .sort((a,b) => b[1]-a[1])
     .map(([d,n]) => `<span class="me-1">${divBadge(d)} ${n}</span>`).join('');
 
-  let html = top3.map((c, i) => `
-    <div class="col-md-4">
-      <div class="card shadow-sm h-100 podium-card ${css[i]}">
-        <div class="card-body text-center">
-          <div class="podium-emoji">${icons[i]}</div>
-          <div class="fw-bold fs-6 mt-1">${esc(c.name)}</div>
-          <div class="mb-2">${divBadge(c.division)} ${catBadge(c.category)}</div>
-          <div class="row text-center g-0">
-            <div class="col-4"><div class="text-muted" style="font-size:.72rem">HF</div><div class="hf">${c.overall_hf.toFixed(4)}</div></div>
-            <div class="col-4"><div class="text-muted" style="font-size:.72rem">Pkt</div><div class="fw-bold">${c.is_disq ? 'DSQ' : c.total_points.toFixed(4)}</div></div>
-            <div class="col-4"><div class="text-muted" style="font-size:.72rem">Czas</div><div class="fw-bold">${c.total_time.toFixed(2)}s</div></div>
-          </div>
-        </div>
-      </div>
-    </div>`).join('');
-
   // Summary stat card
-  html += `
+  let html = `
     <div class="col-md-12 col-lg-12">
       <div class="card shadow-sm">
         <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-4">
@@ -725,7 +701,8 @@ function renderPodium(data) {
    FILTERS & SORT
 ═══════════════════════════════════════════════════════════════════════════ */
 function getFiltered() {
-  const s   = document.getElementById('f-search').value.toLowerCase();
+  const searchEl = document.getElementById('f-search');
+  const s   = searchEl ? searchEl.value.toLowerCase() : '';
   const div = document.getElementById('f-div').value;
   const cat = document.getElementById('f-cat').value;
   return G.data.competitors.filter(c =>
