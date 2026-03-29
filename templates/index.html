@@ -733,13 +733,14 @@ function renderRankingTable() {
   const topMatchesCount = G.rankingInfo.topMatchesCount;
   const totalMatches = G.rankingMatches.length;
   const topLabel = topMatchesCount > 0 ? ` (najlepsze ${topMatchesCount} z ${totalMatches})` : ' (wszystkie)';
-  headerHTML += `<th style="text-align: center; font-weight: bold; width: 180px">Razem${topLabel}</th>`;
   
   G.rankingMatches.forEach(m => {
     headerHTML += `<th style="text-align: center; width: 75px; font-size: 0.85rem" title="${esc(m.name)}">
       <span class="match-name-truncated">${esc(m.name)}</span>
     </th>`;
   });
+  
+  headerHTML += `<th style="text-align: center; font-weight: bold; width: 180px">Razem${topLabel}</th>`;
   
   document.getElementById('overall-head').innerHTML = headerHTML;
 
