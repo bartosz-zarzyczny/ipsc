@@ -88,11 +88,56 @@ def _prepare(cab_path: str) -> dict:
             {div: round(max(hfs), 4) for div, hfs in div_hfs.items()}
         )
 
-    # Wyodrębnij level z nazwy (szukaj "L1" lub "L2")
+    # Wyodrębnij level z nazwy (szukaj "L1", "L2", "L I", "L II", "LEVEL 1", itd.)
     match_name = match_info.get("MatchName", "")
     import re
-    level_match = re.search(r'L(\d+)', match_name)
-    level = int(level_match.group(1)) if level_match else int(match_info.get("MatchLevel", 1))
+    
+    def roman_to_int(roman):
+        """Konwertuj cyfry rzymskie na arabskie"""
+        roman_vals = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
+        total = 0
+        prev_val = 0
+        for char in reversed(roman.upper()):
+            val = roman_vals.get(char, 0)
+            if val < prev_val:
+                total -= val
+            else:
+                total += val
+            prev_val = val
+        return total if total > 0 else None
+    
+    level = None
+    
+    # Spróbuj znaleźć wzory: L1, L2, L3, itd.
+    m = re.search(r'\bL\s*(\d+)\b', match_name, re.IGNORECASE)
+    if m:
+        level = int(m.group(1))
+    
+    # Spróbuj znaleźć cyfry rzymskie: L I, L II, L III, itd.
+    if not level:
+        m = re.search(r'\bL\s+([IVX]+)\b', match_name, re.IGNORECASE)
+        if m:
+            roman_level = roman_to_int(m.group(1))
+            if roman_level:
+                level = roman_level
+    
+    # Spróbuj znaleźć wzory: LEVEL 1, LEVEL 2, itd.
+    if not level:
+        m = re.search(r'\bLEVEL\s+(\d+)\b', match_name, re.IGNORECASE)
+        if m:
+            level = int(m.group(1))
+    
+    # Spróbuj znaleźć wzory: LEVEL I, LEVEL II, itd.
+    if not level:
+        m = re.search(r'\bLEVEL\s+([IVX]+)\b', match_name, re.IGNORECASE)
+        if m:
+            roman_level = roman_to_int(m.group(1))
+            if roman_level:
+                level = roman_level
+    
+    # Jeśli nie znalazł w nazwie, użyj wartości domyślnej z danych
+    if not level:
+        level = int(match_info.get("MatchLevel", 1))
     
     return {
         "match": {
