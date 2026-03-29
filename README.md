@@ -375,3 +375,14 @@ Mapowanie można zmienić w `winmss_results.py` → słownik `DIVISION_NAMES`.
 | `TEAM.XML` | Drużyny |
 | `CLASSIFY.XML` | Klasyfikacje zawodników |
 | `TAG.XML` | Tagi (np. RO) |
+
+## Licencja
+
+Niniejsze oprogramowanie jest udostępniane **za darmo** na zasadzie "jest jaki jest". Pełne warunki licencji dostępne są w pliku [LICENSE.md](LICENSE.md).
+
+### Ważne:
+- **Brak gwarancji** — autor nie odpowiada za żadne błędy lub szkody
+- **Każdy użytkownik** korzysta z oprogramowania **na własną odpowiedzialność**
+- **Wymóg zachowania** — sekcja "Śledź nas w mediach społecznych" musi pozostać na głównej stronie aplikacji
+
+Dostępna również [wersja angielska licencji](LICENSE_EN.md).

@@ -375,3 +375,14 @@ Mapping can be changed in `winmss_results.py` → `DIVISION_NAMES` dictionary.
 | `TEAM.XML` | Teams |
 | `CLASSIFY.XML` | Competitor classifications |
 | `TAG.XML` | Tags (e.g. RO) |
+
+## License
+
+This software is provided **free of charge** on an "as-is" basis. Full license terms are available in the [LICENSE_EN.md](LICENSE_EN.md) file.
+
+### Important:
+- **No warranty** — the author is not responsible for any errors or damages
+- **Each user** uses the software **at their own risk**
+- **Requirement to maintain** — the "Follow us on social media" section must remain on the application's main page
+
+A [Polish version of the license](LICENSE.md) is also available.
