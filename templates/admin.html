@@ -61,6 +61,11 @@
       </button>
     </li>
     <li class="nav-item" role="presentation">
+      <button class="nav-link" id="competitors-tab" data-bs-toggle="tab" data-bs-target="#competitors" type="button" role="tab" aria-controls="competitors" aria-selected="false">
+        <i class="bi bi-people-fill"></i> Zawodnicy
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
       <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="false">
         <i class="bi bi-people-fill"></i> Użytkownicy
       </button>
@@ -288,6 +293,47 @@
       </div>
     </div>
 
+    <div class="tab-pane fade" id="competitors" role="tabpanel" aria-labelledby="competitors-tab">
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-people-fill"></i> Edycja zawodników</h6>
+          <p class="text-muted small mb-3">Wybierz zawody, aby edytować imiona i nazwiska zawodników.</p>
+          
+          <label class="form-label small fw-semibold">Zawody do edycji</label>
+          <select id="competitorsMatchSelect" class="form-control mb-3">
+            <option value="">— wybierz zawody —</option>
+            {% for m in matches %}
+            <option value="{{ m.id }}">{{ m.name }} ({{ m.date or 'brak daty' }})</option>
+            {% endfor %}
+          </select>
+
+          <div id="competitorsContainer" style="display:none;">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                  <tr>
+                    <th>Lp.</th>
+                    <th>ID Zawodnika</th>
+                    <th>Imię</th>
+                    <th>Nazwisko</th>
+                    <th>Dywizja</th>
+                    <th class="text-end">Akcje</th>
+                  </tr>
+                </thead>
+                <tbody id="competitorsList">
+                  <!-- Zawodnicy będą wstawieni tutaj przez JavaScript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="noCompetitorsMessage" style="display:none;">
+            <p class="text-muted">Brak zawodów do wyświetlenia.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="tab-pane fade" id="users" role="tabpanel" aria-labelledby="users-tab">
       <div class="card shadow-sm mb-4">
         <div class="card-body">
@@ -384,6 +430,156 @@
       btn.click();
     }
   });
+  
+  // ========================================================================
+  // Competitors Tab
+  // ========================================================================
+  
+  const competitorsMatchSelect = document.getElementById('competitorsMatchSelect');
+  const competitorsList = document.getElementById('competitorsList');
+  const competitorsContainer = document.getElementById('competitorsContainer');
+  const noCompetitorsMessage = document.getElementById('noCompetitorsMessage');
+  
+  competitorsMatchSelect.addEventListener('change', async function() {
+    const matchId = this.value;
+    
+    if (!matchId) {
+      competitorsContainer.style.display = 'none';
+      noCompetitorsMessage.style.display = 'none';
+      competitorsList.innerHTML = '';
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/admin/api/competitors/${matchId}`);
+      if (!response.ok) {
+        alert('Błąd wczytywania zawodników');
+        return;
+      }
+      
+      const data = await response.json();
+      const competitors = data.competitors || [];
+      
+      if (competitors.length === 0) {
+        competitorsContainer.style.display = 'none';
+        noCompetitorsMessage.style.display = 'block';
+        return;
+      }
+      
+      // Zbuduj tabelę zawodników
+      competitorsList.innerHTML = competitorsToTableRows(matchId, competitors);
+      competitorsContainer.style.display = 'block';
+      noCompetitorsMessage.style.display = 'none';
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Błąd wczytywania zawodników');
+    }
+  });
+  
+  function competitorsToTableRows(matchId, competitors) {
+    return competitors.map((c, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td class="text-muted small">${c.comp_id}</td>
+        <td>
+          <input type="text" class="form-control form-control-sm competitor-firstName" 
+                 value="${c.firstname}" data-comp-id="${c.comp_id}" data-match-id="${matchId}" 
+                 placeholder="Imię">
+        </td>
+        <td>
+          <input type="text" class="form-control form-control-sm competitor-lastName" 
+                 value="${c.lastname}" data-comp-id="${c.comp_id}" data-match-id="${matchId}" 
+                 placeholder="Nazwisko">
+        </td>
+        <td>${c.division}</td>
+        <td class="text-end">
+          <button type="button" class="btn btn-sm btn-success" 
+                  onclick="saveCompetitor('${matchId}', '${c.comp_id}')">
+            <i class="bi bi-check-lg"></i> Zapisz
+          </button>
+          <button type="button" class="btn btn-sm btn-danger" 
+                  onclick="deleteCompetitor('${matchId}', '${c.comp_id}', '${(c.firstname + ' ' + c.lastname).replace(/'/g, '')}')">
+            <i class="bi bi-trash"></i> Usuń
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+  
+  async function saveCompetitor(matchId, compId) {
+    const firstNameInput = document.querySelector(`input.competitor-firstName[data-comp-id="${compId}"]`);
+    const lastNameInput = document.querySelector(`input.competitor-lastName[data-comp-id="${compId}"]`);
+    
+    if (!firstNameInput || !lastNameInput) {
+      alert('Nie znaleziono pol do edycji');
+      return;
+    }
+    
+    const firstname = firstNameInput.value.trim();
+    const lastname = lastNameInput.value.trim();
+    
+    if (!firstname || !lastname) {
+      alert('Imię i nazwisko nie mogą być puste');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/admin/api/competitors/${matchId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comp_id: compId,
+          firstname: firstname,
+          lastname: lastname,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        alert(`Błąd: ${data.error || 'Nie udało się zapisać zmian'}`);
+        return;
+      }
+      
+      alert('Zawodnik zaktualizowany');
+      // Odśwież listę zawodników
+      competitorsMatchSelect.dispatchEvent(new Event('change'));
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Błąd podczas zapisywania');
+    }
+  }
+  
+  async function deleteCompetitor(matchId, compId, compName) {
+    if (!confirm(`Czy na pewno usunąć zawodnika "${compName}"?`)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/admin/api/competitors/${matchId}/${compId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        alert(`Błąd: ${data.error || 'Nie udało się usunąć zawodnika'}`);
+        return;
+      }
+      
+      alert('Zawodnik usunięty');
+      // Odśwież listę zawodników
+      competitorsMatchSelect.dispatchEvent(new Event('change'));
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Błąd podczas usuwania');
+    }
+  }
   
   // Funkcja do otwarcia modalu edycji zawodów
   window.openEditMatchModal = function(button) {

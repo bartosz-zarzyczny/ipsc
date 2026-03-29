@@ -40,6 +40,8 @@ from database import (
     add_match_to_ranking,
     update_match_rankings,
     update_match_multiplier,
+    update_competitor_name,
+    delete_competitor_from_match,
 )
 
 app = Flask(__name__)
@@ -111,6 +113,8 @@ def _prepare(cab_path: str) -> dict:
             {
                 "rank":         c["rank"],
                 "comp_id":      c["comp_id"],
+                "firstname":    c["firstname"],
+                "lastname":     c["lastname"],
                 "name":         f"{c['lastname']} {c['firstname']}",
                 "division":     c["division"],
                 "div_id":       c["div_id"],
@@ -459,6 +463,79 @@ def admin_change_password():
     change_password(session.get("username"), new_hash)
     
     return redirect(url_for("admin_panel") + "?tab=users&success=Has%C5%82o+zmienione")
+
+
+# ---------------------------------------------------------------------------
+# Competitors (Admin API)
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/api/competitors/<int:match_id>", methods=["GET"])
+@admin_required
+def admin_get_competitors(match_id):
+    """Get all competitors for a match."""
+    match_data = get_match(match_id)
+    if match_data is None:
+        return jsonify({"error": "Nie znaleziono zawodów"}), 404
+    
+    competitors = match_data.get("competitors", [])
+    # Zwróć tylko potrzebne pola
+    result = []
+    for c in competitors:
+        # Jeśli firstname/lastname są puste, rozbij name
+        firstname = c.get("firstname", "").strip()
+        lastname = c.get("lastname", "").strip()
+        
+        if not firstname or not lastname:
+            # Rozbij name "Lastname Firstname" na części
+            name = c.get("name", "").strip()
+            if name and not firstname and not lastname:
+                parts = name.rsplit(" ", 1)  # Rozbij na ostatnią spację
+                if len(parts) == 2:
+                    lastname, firstname = parts
+                else:
+                    lastname = parts[0]
+        
+        result.append({
+            "comp_id": c.get("comp_id"),
+            "firstname": firstname,
+            "lastname": lastname,
+            "name": c.get("name", ""),
+            "division": c.get("division", ""),
+            "category": c.get("category", ""),
+        })
+    return jsonify({"competitors": result})
+
+
+@app.route("/admin/api/competitors/<int:match_id>", methods=["POST"])
+@admin_required
+def admin_update_competitor(match_id):
+    """Update competitor's first name and last name."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "Brak danych"}), 400
+    
+    comp_id = data.get("comp_id")
+    firstname = data.get("firstname", "").strip()
+    lastname = data.get("lastname", "").strip()
+    
+    if not comp_id or not firstname or not lastname:
+        return jsonify({"error": "Brak wymaganych pól: comp_id, firstname, lastname"}), 400
+    
+    if update_competitor_name(match_id, comp_id, firstname, lastname):
+        return jsonify({"ok": True, "message": "Zawodnik zaktualizowany"})
+    else:
+        return jsonify({"error": "Nie znaleziono zawodnika"}), 404
+
+
+@app.route("/admin/api/competitors/<int:match_id>/<comp_id>", methods=["DELETE"])
+@admin_required
+def admin_delete_competitor(match_id, comp_id):
+    """Delete a competitor from a match."""
+    if delete_competitor_from_match(match_id, comp_id):
+        return jsonify({"ok": True, "message": "Zawodnik usunięty"})
+    else:
+        return jsonify({"error": "Nie znaleziono zawodnika"}), 404
 
 
 # ---------------------------------------------------------------------------
