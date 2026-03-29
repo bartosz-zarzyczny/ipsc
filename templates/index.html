@@ -499,30 +499,33 @@ function initRankingResults(rankingData) {
   
   rankingData.matches.forEach((matchData, matchIdx) => {
     const matchMultiplier = matchData.match.multiplier || 1.0;
+    
     matchData.competitors.forEach(comp => {
       const compKey = `${comp.name}|${comp.division}`;
       if (!compMap[compKey]) {
         compMap[compKey] = {
-          comp_id: comp.comp_id, // Store first comp_id encountered
+          comp_id: comp.comp_id,
           name: comp.name,
           division: comp.division,
           category: comp.category,
           female: comp.female,
           is_disq: comp.is_disq,
-          matchResults: [], // { matchId, pct_in_div, points, is_disq, multiplied_pct }
+          matchResults: [],
         };
       }
       const c = compMap[compKey];
       
-      // Get max HF for this competitor's division in this match
+      // Get max points_in_division for this competitor's division in this match
       const divStages = matchData.competitors.filter(mc => mc.division === comp.division && !mc.is_disq);
-      let maxHF = 0;
+      let maxPointsInDiv = 0;
       divStages.forEach(mc => {
-        if (mc.overall_hf && mc.overall_hf > maxHF) maxHF = mc.overall_hf;
+        if (mc.total_points_in_division && mc.total_points_in_division > maxPointsInDiv) {
+          maxPointsInDiv = mc.total_points_in_division;
+        }
       });
       
-      const pctInDiv = maxHF > 0 && !comp.is_disq ? (comp.overall_hf / maxHF * 100) : 0;
-      const multipliedPct = pctInDiv * matchMultiplier; // Apply multiplier
+      const pctInDiv = maxPointsInDiv > 0 && !comp.is_disq ? (comp.total_points_in_division / maxPointsInDiv * 100) : 0;
+      const multipliedPct = pctInDiv * matchMultiplier;
       
       c.matchResults.push({
         matchId: matchData.match.id,
@@ -646,8 +649,8 @@ function renderRankingTable() {
     // Add per-match percentages
     G.rankingMatches.forEach(m => {
       const result = c.matchResults.find(r => r.matchId === m.id);
-      const pct = result ? result.pct_in_div.toFixed(1) : '–';
-      const pctNum = result?.pct_in_div || 0;
+      const pct = result ? result.multiplied_pct.toFixed(1) : '–';
+      const pctNum = result?.multiplied_pct || 0;
       
       const bgColor = pctNum > 0 ? Math.min(100, pctNum) : 0;
       const opacity = bgColor / 100;
