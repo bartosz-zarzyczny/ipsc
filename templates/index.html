@@ -281,6 +281,7 @@
       </div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm btn-light" onclick="downloadPDF()"><i class="bi bi-file-pdf"></i> PDF</button>
       <button class="btn btn-sm btn-light" onclick="downloadCSV()"><i class="bi bi-download"></i> CSV</button>
       <button class="btn btn-sm btn-outline-light" onclick="resetUI()"><i class="bi bi-arrow-left"></i> Wróć</button>
     </div>
@@ -347,6 +348,7 @@
 </div><!-- /sec-results -->
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
    STATE
@@ -1197,6 +1199,268 @@ function downloadCSV() {
   a.href = URL.createObjectURL(blob);
   a.download = (G.data.match.name.replace(/[^\w\s-]/g,'').trim() || 'wyniki') + '.csv';
   a.click();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PDF EXPORT (client-side) - with html2pdf
+═══════════════════════════════════════════════════════════════════════════ */
+function downloadPDF() {
+  if (!G.data) return;
+
+  // Determine if this is a ranking or match
+  const isRanking = Array.isArray(G.data) && G.rankingInfo;
+  
+  let htmlContent;
+  let filename;
+  
+  if (isRanking) {
+    htmlContent = generateRankingPDFContent();
+    filename = (G.rankingInfo.name.replace(/[^\w\s-]/g,'').trim() || 'ranking') + '.pdf';
+  } else {
+    htmlContent = generateMatchPDFContent();
+    filename = (G.data.match.name.replace(/[^\w\s-]/g,'').trim() || 'wyniki') + '.pdf';
+  }
+
+  const element = document.createElement('div');
+  element.innerHTML = htmlContent;
+  
+  const opt = {
+    margin: [8, 8, 8, 8],
+    filename: filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, allowTaint: true },
+    jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+  };
+  
+  html2pdf().set(opt).from(element).save();
+}
+
+function generateRankingPDFContent() {
+  let html = `
+    <style>
+      @media print {
+        table { border-collapse: collapse; }
+        tbody tr { page-break-inside: avoid; }
+        table { page-break-inside: avoid; }
+      }
+    </style>
+    <div style="font-family: Arial, sans-serif; padding: 12px; color: #333;">
+      <h1 style="text-align: center; margin: 0 0 6px 0; color: #1a5276; font-size: 20px;">${esc(G.rankingInfo.name)}</h1>
+      <p style="text-align: center; color: #666; margin: 0 0 16px 0; font-size: 12px;">
+        Data: ${G.rankingInfo.date} | Zawodów: ${G.rankingInfo.matchCount}
+      </p>
+  `;
+
+  // Get unique divisions
+  const divisions = [...new Set(G.data.map(c => c.division))].sort();
+
+  // Build a table for each division
+  divisions.forEach((div, divIdx) => {
+    const competitors = G.data
+      .filter(c => c.division === div && !c.is_disq)
+      .sort((a, b) => b.total_pct - a.total_pct);
+    
+    const disqCompetitors = G.data.filter(c => c.division === div && c.is_disq);
+
+    html += `
+      <div style="page-break-after: auto; margin-bottom: 16px;">
+        <h2 style="font-size: 14px; margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 2px solid ${getDivisionColor(div)};">
+          ${esc(div)} (${competitors.length + disqCompetitors.length})
+        </h2>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; page-break-inside: avoid;">
+          <thead>
+            <tr style="background-color: #f0f0f0; border-bottom: 2px solid #999;">
+              <th style="padding: 5px 4px; text-align: center; border: 1px solid #ddd; font-size: 11px;">#</th>
+              <th style="padding: 5px 4px; text-align: left; border: 1px solid #ddd; font-size: 11px;">Zawodnik</th>
+              <th style="padding: 5px 4px; text-align: center; border: 1px solid #ddd; font-size: 10px;">Kat.</th>
+    `;
+
+    // Add match column headers
+    G.rankingMatches.forEach(m => {
+      html += `<th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 9px;">
+        ${esc(m.name.substring(0, 12))}
+      </th>`;
+    });
+
+    html += `
+              <th style="padding: 5px 4px; text-align: center; border: 1px solid #ddd; font-weight: bold; background-color: #e8f0f8; font-size: 11px;">
+                Razem
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    // Add active competitors
+    competitors.forEach((c, idx) => {
+      const bgColor = idx === 0 ? '#ffd700' : idx === 1 ? '#c0c0c0' : idx === 2 ? '#cd7f32' : '#ffffff';
+      html += `<tr style="background-color: ${bgColor}; border-bottom: 1px solid #ddd; page-break-inside: avoid;">
+        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-weight: bold; font-size: 11px;">${idx + 1}</td>
+        <td style="padding: 4px 2px; text-align: left; border: 1px solid #ddd; font-size: 11px;">
+          ${esc(c.name)}${c.female ? ' ♀' : ''}
+        </td>
+        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">
+          ${c.category ? esc(c.category) : '-'}
+        </td>
+      `;
+
+      // Add per-match percentages
+      G.rankingMatches.forEach(m => {
+        const result = c.matchResults.find(r => r.matchId === m.id);
+        const pct = result ? result.multiplied_pct.toFixed(1) : '-';
+        const opacity = (result?.multiplied_pct || 0) / 100;
+        const bgOpacity = Math.min(0.3, opacity * 0.2);
+        html += `<td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px; background-color: rgba(26, 95, 180, ${bgOpacity});">
+          <strong>${pct}%</strong>
+        </td>`;
+      });
+
+      html += `
+        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-weight: bold; background-color: #e8f0f8; font-size: 11px;">
+          ${c.total_pct.toFixed(1)}%
+        </td>
+      </tr>`;
+    });
+
+    // Add disqualified competitors
+    disqCompetitors.forEach(c => {
+      html += `<tr style="background-color: #ffe8e8; color: #c0392b; border-bottom: 1px solid #ddd; page-break-inside: avoid;">
+        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-weight: bold; font-size: 11px;">DSQ</td>
+        <td style="padding: 4px 2px; text-align: left; border: 1px solid #ddd; font-size: 11px;">
+          ${esc(c.name)}${c.female ? ' ♀' : ''}
+        </td>
+        <td colspan="${G.rankingMatches.length + 2}" style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-style: italic; font-size: 10px;">
+          Dyskwalifikowany
+        </td>
+      </tr>`;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+function generateMatchPDFContent() {
+  const { match, competitors, stages } = G.data;
+  
+  let html = `
+    <style>
+      @media print {
+        table { border-collapse: collapse; }
+        tbody tr { page-break-inside: avoid; }
+        table { page-break-inside: avoid; }
+      }
+    </style>
+    <div style="font-family: Arial, sans-serif; padding: 12px; color: #333;">
+      <h1 style="text-align: center; margin: 0 0 6px 0; color: #1a5276; font-size: 20px;">${esc(match.name)}</h1>
+      <p style="text-align: center; color: #666; margin: 0 0 16px 0; font-size: 12px;">
+        Data: ${match.date} | Poziom: L${match.level} | Torów: ${stages.length} | Zawodników: ${competitors.length}
+      </p>
+  `;
+
+  // Get unique divisions
+  const divisions = [...new Set(competitors.map(c => c.division))].sort();
+
+  // Build a table for each division
+  divisions.forEach((div, divIdx) => {
+    const competitorsInDiv = competitors
+      .filter(c => c.division === div && !c.is_disq)
+      .sort((a, b) => (b.total_points_in_division || b.total_points) - (a.total_points_in_division || a.total_points));
+    
+    const disqInDiv = competitors.filter(c => c.division === div && c.is_disq);
+
+    const activeSorted = competitors.filter(c => c.division === div && !c.is_disq)
+      .sort((a, b) => (b.total_points_in_division || b.total_points) - (a.total_points_in_division || a.total_points));
+    const bestPts = activeSorted[0]?.total_points_in_division || activeSorted[0]?.total_points || 0;
+
+    html += `
+      <div style="page-break-after: auto; margin-bottom: 16px;">
+        <h2 style="font-size: 14px; margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 2px solid ${getDivisionColor(div)};">
+          ${esc(div)} (${competitorsInDiv.length + disqInDiv.length})
+        </h2>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; page-break-inside: avoid;">
+          <thead>
+            <tr style="background-color: #f0f0f0; border-bottom: 2px solid #999;">
+              <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">Dyw.</th>
+              <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">Og.</th>
+              <th style="padding: 4px 2px; text-align: left; border: 1px solid #ddd; font-size: 11px;">Zawodnik</th>
+              <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">Kat.</th>
+              <th style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">Pkt</th>
+              <th style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">Czas</th>
+              <th style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">HF</th>
+              <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">% dyw.</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    // Add active competitors
+    competitorsInDiv.forEach((c, idx) => {
+      const bgColor = idx === 0 ? '#ffd700' : idx === 1 ? '#c0c0c0' : idx === 2 ? '#cd7f32' : '#ffffff';
+      const pts = c.total_points_in_division || c.total_points;
+      const divPct = bestPts > 0 ? (pts / bestPts * 100).toFixed(2) : '-';
+      
+      html += `<tr style="background-color: ${bgColor}; border-bottom: 1px solid #ddd; page-break-inside: avoid;">
+        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-weight: bold; font-size: 11px;">${idx + 1}</td>
+        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; color: #999; font-size: 10px;">${c.rank}</td>
+        <td style="padding: 4px 2px; text-align: left; border: 1px solid #ddd; font-size: 11px;">
+          ${esc(c.name)}${c.female ? ' ♀' : ''}
+        </td>
+        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">
+          ${c.category ? esc(c.category) : '-'}
+        </td>
+        <td style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-family: monospace; font-size: 10px;">
+          ${pts.toFixed(4)}
+        </td>
+        <td style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">
+          ${c.total_time.toFixed(2)}s
+        </td>
+        <td style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-family: monospace; font-size: 10px;">
+          ${c.overall_hf.toFixed(4)}
+        </td>
+        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-weight: bold; font-size: 10px;">
+          ${divPct}%
+        </td>
+      </tr>`;
+    });
+
+    // Add disqualified competitors
+    disqInDiv.forEach(c => {
+      html += `<tr style="background-color: #ffe8e8; color: #c0392b; border-bottom: 1px solid #ddd; page-break-inside: avoid;">
+        <td colspan="3" style="padding: 4px 2px; text-align: left; border: 1px solid #ddd; font-weight: bold; font-size: 11px;">
+          DSQ - ${esc(c.name)}${c.female ? ' ♀' : ''}
+        </td>
+        <td colspan="5" style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-style: italic; font-size: 10px;">
+          Dyskwalifikowany
+        </td>
+      </tr>`;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+function getDivisionColor(div) {
+  const colors = {
+    'Open':            '#c0392b',
+    'Standard':        '#1a5276',
+    'Standard Manual': '#6c3483',
+    'Modified':        '#1e8449',
+  };
+  return colors[div] || '#888';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
