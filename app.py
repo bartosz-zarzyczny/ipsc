@@ -309,9 +309,11 @@ def admin_login():
         user = request.form.get("username", "")
         pwd  = request.form.get("password", "")
         pwd_hash = hashlib.sha256(pwd.encode()).hexdigest()
-        if verify_user(user, pwd_hash):
+        user_id = verify_user(user, pwd_hash)
+        if user_id is not None:
             session["admin"] = True
             session["username"] = user
+            session["user_id"] = user_id
             return redirect(url_for("admin_panel"))
         return render_template("admin_login.html", error="Nieprawidłowy login lub hasło")
     return render_template("admin_login.html", error=None)
@@ -321,6 +323,7 @@ def admin_login():
 def admin_logout():
     session.pop("admin", None)
     session.pop("username", None)
+    session.pop("user_id", None)
     return redirect(url_for("admin_login"))
 
 
@@ -516,6 +519,7 @@ def admin_delete_user(user_id):
 def admin_change_password():
     """Change password for logged-in user."""
     username = session.get("username")
+    user_id = session.get("user_id")
     current_pwd = request.form.get("current_password", "")
     new_pwd = request.form.get("new_password", "")
     confirm_pwd = request.form.get("confirm_password", "")
@@ -527,16 +531,24 @@ def admin_change_password():
     if new_pwd != confirm_pwd:
         return redirect(url_for("admin_panel") + "?tab=users&error=Has%C5%82a+nie+zgadzaj%C4%85+si%C4%99")
     
+    # Check session
+    if not user_id or user_id is None:
+        print(f"[ERROR] Zmiana hasła: brak user_id w sesji. username={username}")
+        return redirect(url_for("admin_panel") + "?tab=users&error=B%C5%82%C4%85d+sesji")
+    
     # Verify current password
     current_hash = hashlib.sha256(current_pwd.encode()).hexdigest()
-    if not verify_user(username, current_hash):
+    verify_result = verify_user(username, current_hash)
+    if verify_result is None:
         return redirect(url_for("admin_panel") + "?tab=users&error=Nieprawid%C5%82owe+has%C5%82o")
     
     # Update password
     new_hash = hashlib.sha256(new_pwd.encode()).hexdigest()
-    change_password(session.get("username"), new_hash)
-    
-    return redirect(url_for("admin_panel") + "?tab=users&success=Has%C5%82o+zmienione")
+    if change_password(user_id, new_hash):
+        return redirect(url_for("admin_panel") + "?tab=users&success=Has%C5%82o+zmienione")
+    else:
+        print(f"[ERROR] Zmiana hasła nie powiodła się. user_id={user_id}")
+        return redirect(url_for("admin_panel") + "?tab=users&error=Nie+uda%C5%82o+si%C4%99+zmieni%C4%87+has%C5%82a")
 
 
 # ---------------------------------------------------------------------------

@@ -443,18 +443,20 @@ def add_user(username: str, password_hash: str) -> int:
     return user_id
 
 
-def verify_user(username: str, password_hash: str) -> bool:
-    """Verify if username/password matches. Uses timing-safe comparison."""
+def verify_user(username: str, password_hash: str) -> int | None:
+    """Verify if username/password matches. Returns user_id if valid, None otherwise. Uses timing-safe comparison."""
     import hmac
     conn = get_db()
     row = conn.execute(
-        "SELECT password_hash FROM users WHERE username = ?", (username,)
+        "SELECT id, password_hash FROM users WHERE username = ?", (username,)
     ).fetchone()
     conn.close()
     if row is None:
-        return False
+        return None
     stored_hash = row["password_hash"]
-    return hmac.compare_digest(password_hash, stored_hash)
+    if hmac.compare_digest(password_hash, stored_hash):
+        return row["id"]
+    return None
 
 
 def list_users() -> list[dict]:
