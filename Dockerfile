@@ -15,6 +15,7 @@ RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.
 # Copy application files
 COPY app.py database.py winmss_results.py ./
 COPY templates/ ./templates/
+COPY static/ ./static/
 
 # Create volume mount points
 RUN mkdir -p /app/data

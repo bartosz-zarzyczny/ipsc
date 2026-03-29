@@ -1,0 +1,93 @@
+{
+  "menu": {
+    "ranking": "Ranking",
+    "matches": "Wettkämpfe",
+    "admin": "Admin-Panel"
+  },
+  "messages": {
+    "loading": "Datei wird verarbeitet…",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "processing": "Wird verarbeitet…",
+    "noRankings": "Keine Rankings. Fügen Sie diese hinzu unter",
+    "panelAdmina": "Admin-Panel",
+    "noMatches": "Keine Wettkämpfe. Fügen Sie diese hinzu unter",
+    "selectMatches": "Wettkämpfe auswählen",
+    "selectRankings": "Verfügbare Rankings",
+    "noResults": "Keine Ergebnisse für die gewählten Filter"
+  },
+  "header": {
+    "title": "IPSC-Ergebnisse",
+    "subtitle": "Betrachter für IPSC-/Schießwettkampfergebnisse",
+    "social": "Folgen Sie uns in den sozialen Medien",
+    "socialDesc": "Wenn Ihnen diese App gefällt, abonnieren Sie meine Kanäle, auf denen ich Inhalte über Sportschießen und IPSC-Wettbewerbe teile.",
+    "githubPrefix": "Projekt auf GitHub verfügbar"
+  },
+  "tabs": {
+    "overall": "Gesamtübersicht",
+    "divisions": "Abteilungen",
+    "stages": "Stationen"
+  },
+  "buttons": {
+    "back": "Zurück",
+    "download": "Herunterladen",
+    "pdf": "PDF",
+    "csv": "CSV"
+  },
+  "meta": {
+    "date": "Datum",
+    "level": "Ebene",
+    "stages": "Stationen",
+    "competitors": "Teilnehmer",
+    "matches": "Wettkämpfe",
+    "disqualified": "DSQ"
+  },
+  "filters": {
+    "allDivisions": "Alle Abteilungen",
+    "allCategories": "Alle Kategorien",
+    "search": "Suchen"
+  },
+  "results": {
+    "podium": "Podium",
+    "disqualified": "Disqualifiziert",
+    "dsq": "DSQ",
+    "competitorNotFound": "Konkurrent nicht gefunden",
+    "competitors": "Teilnehmer",
+    "best": "beste",
+    "all": "alle",
+    "of": "von",
+    "total": "Gesamt"
+  },
+  "table": {
+    "place": "#",
+    "number": "Nr.",
+    "competitor": "Teilnehmer",
+    "division": "Abteilung",
+    "category": "Kategorie",
+    "points": "Pkt",
+    "time": "Zeit",
+    "hf": "HF Gesamt",
+    "percentage": "% Führende",
+    "percentageDivision": "% in Abt.",
+    "divisionRank": "# Abt.",
+    "stageTime": "Zeit",
+    "expand": "Stationsdetails erweitern",
+    "stage": "Station",
+    "alpha": "A",
+    "beta": "B",
+    "charlie": "C",
+    "delta": "D",
+    "misses": "F",
+    "noShoot": "NS",
+    "procedural": "PE",
+    "disqualified": "Disqualifiziert"
+  },
+  "language": {
+    "select": "Sprache",
+    "polish": "Polski",
+    "english": "English",
+    "german": "Deutsch",
+    "czech": "Čeština",
+    "french": "Français"
+  }
+}

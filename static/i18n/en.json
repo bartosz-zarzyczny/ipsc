@@ -1,0 +1,93 @@
+{
+  "menu": {
+    "ranking": "Ranking",
+    "matches": "Matches",
+    "admin": "Admin Panel"
+  },
+  "messages": {
+    "loading": "Processing file…",
+    "error": "Error",
+    "success": "Success",
+    "processing": "Processing…",
+    "noRankings": "No rankings. Add them in",
+    "panelAdmina": "admin panel",
+    "noMatches": "No matches. Add them in",
+    "selectMatches": "Select matches",
+    "selectRankings": "Available rankings",
+    "noResults": "No results for selected filters"
+  },
+  "header": {
+    "title": "IPSC Results",
+    "subtitle": "IPSC / shooting competition results viewer",
+    "social": "Follow us on social media",
+    "socialDesc": "If you like this app, subscribe to my channels where I share content about sport shooting and IPSC competitions.",
+    "githubPrefix": "Project available on"
+  },
+  "tabs": {
+    "overall": "Overall Standings",
+    "divisions": "Divisions",
+    "stages": "Stages"
+  },
+  "buttons": {
+    "back": "Back",
+    "download": "Download",
+    "pdf": "PDF",
+    "csv": "CSV"
+  },
+  "meta": {
+    "date": "Date",
+    "level": "Level",
+    "stages": "Stages",
+    "competitors": "Competitors",
+    "matches": "Matches",
+    "disqualified": "DSQ"
+  },
+  "filters": {
+    "allDivisions": "All divisions",
+    "allCategories": "All categories",
+    "search": "Search"
+  },
+  "results": {
+    "podium": "Podium",
+    "disqualified": "Disqualified",
+    "dsq": "DSQ",
+    "competitorNotFound": "Competitor not found",
+    "competitors": "competitors",
+    "best": "best",
+    "all": "all",
+    "of": "of",
+    "total": "Total"
+  },
+  "table": {
+    "place": "#",
+    "number": "No.",
+    "competitor": "Competitor",
+    "division": "Division",
+    "category": "Category",
+    "points": "Pts",
+    "time": "Time",
+    "hf": "HF Overall",
+    "percentage": "% Leader",
+    "percentageDivision": "% in Div.",
+    "divisionRank": "# Div.",
+    "stageTime": "Time",
+    "expand": "Expand stage details",
+    "stage": "Stage",
+    "alpha": "A",
+    "beta": "B",
+    "charlie": "C",
+    "delta": "D",
+    "misses": "M",
+    "noShoot": "NS",
+    "procedural": "PE",
+    "disqualified": "Disqualified"
+  },
+  "language": {
+    "select": "Language",
+    "polish": "Polski",
+    "english": "English",
+    "german": "Deutsch",
+    "czech": "Čeština",
+    "french": "Français"
+  }
+}
