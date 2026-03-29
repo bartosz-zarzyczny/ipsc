@@ -141,7 +141,7 @@
                     <button type="button" class="btn btn-sm btn-outline-primary" 
                       onclick="openEditMatchModal(this)" 
                       data-bs-toggle="modal" data-bs-target="#editMatchModal" 
-                      data-match-id="{{ m.id }}" data-match-name="{{ m.name|e }}" data-ranking-ids="{{ m.ranking_ids|join(',') }}" data-multiplier="{{ m.multiplier }}"
+                      data-match-id="{{ m.id }}" data-match-name="{{ m.name|e }}" data-ranking-ids="{{ m.ranking_ids|join(',') }}" data-multiplier="{{ m.multiplier }}" data-level="{{ m.level }}"
                       title="Edytuj zawody">
                       <i class="bi bi-pencil"></i> Edytuj
                     </button>
@@ -587,10 +587,12 @@
     const matchName = button.getAttribute('data-match-name');
     const rankingIds = (button.getAttribute('data-ranking-ids') || '').split(',').filter(x => x);
     const multiplier = parseFloat(button.getAttribute('data-multiplier')) || 1.0;
+    const level = button.getAttribute('data-level') || '1';
     
     document.getElementById('editMatchId').value = matchId;
     document.getElementById('editMatchName').textContent = matchName;
     document.getElementById('editMatchMultiplier').value = multiplier;
+    document.getElementById('editMatchLevel').value = level;
     
     document.querySelectorAll('#editMatchModal input[name="ranking_ids"]').forEach(checkbox => {
       checkbox.checked = rankingIds.includes(checkbox.value);
@@ -608,10 +610,22 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form action="/admin/matches/assign-rankings" method="POST">
+      <form action="/admin/matches/update" method="POST">
         <div class="modal-body">
           <p class="small text-muted">Zawody: <strong id="editMatchName"></strong></p>
           <input type="hidden" id="editMatchId" name="match_id">
+          
+          <label class="form-label small fw-semibold">Poziom</label>
+          <div class="mb-3">
+            <select id="editMatchLevel" name="level" class="form-select">
+              <option value="0">Level 0</option>
+              <option value="1" selected>Level 1</option>
+              <option value="2">Level 2</option>
+              <option value="3">Level 3</option>
+              <option value="4">Level 4</option>
+              <option value="5">Level 5</option>
+            </select>
+          </div>
           
           <label class="form-label small fw-semibold">Mnożnik (dla rankingu)</label>
           <div class="input-group mb-3">
