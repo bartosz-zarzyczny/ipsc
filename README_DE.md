@@ -1,0 +1,218 @@
+# IPSC — IPSC-Ergebnisse
+
+Ein Tool zum Extrahieren und Anzeigen von IPSC-Schießwettkampfergebnissen aus WinMSS `.cab`-Dateien.
+
+## Projektstruktur
+
+```
+├── WinMSS.cab                    # Datei mit Wettkampfdaten (WinMSS-Export)
+├── data/                         # Ordner mit Datenbank und Konfiguration (persistent in Docker)
+│   ├── config.json               # Automatisch generierte Instanzkonfiguration
+│   └── {instance_id}.db          # SQLite-Datenbank (eindeutig benannt pro Instanz)
+├── winmss_results.py             # CLI-Skript – Ergebnisse im Terminal / CSV-Export
+├── app.py                        # Flask-Server – Browser-Benutzeroberfläche
+├── database.py                   # Datenbankebene (ORM)
+├── docker-compose.yml            # Docker Compose-Konfiguration
+├── Dockerfile                    # Container-Spezifikation
+└── templates/
+    ├── index.html                # Frontend (Ergebnisanzeige)
+    ├── admin.html                # Admin-Panel (Wettkämpfe + Rankings + Benutzer)
+    └── admin_login.html          # Anmeldeformular
+```
+
+## Anforderungen
+
+- **Python 3.9+**
+- **Flask** — `pip install flask`
+- **cabextract** — zum Entpacken von `.cab`-Dateien
+  ```bash
+  brew install cabextract   # macOS
+  ```
+
+## Anwendung ausführen
+
+### Lokal (ohne Docker)
+
+```bash
+python3 app.py
+# → Browser öffnet sich auf http://localhost:5000
+```
+
+### In Docker-Container
+
+#### Option 1: Docker Compose (empfohlen)
+
+```bash
+# Standardinstanz – Port 3001, Standardcontainername
+docker-compose up --build
+
+# Oder im Hintergrund
+docker-compose up -d
+```
+
+**Mehrere Instanzen auf einem VPS ausführen:**
+
+Um Konflikte zwischen Instanzen zu vermeiden, verwenden Sie das `-p`-Flag (Projektname). Jedes Projekt muss einen eindeutigen Namen haben:
+
+```bash
+# Instanz 1 – Port 3001, Projekt ipsc1
+CONTAINER_NAME=ipsc-app-1 PORT=3001 docker-compose -p ipsc1 up -d
+
+# Instanz 2 – Port 3002, Projekt ipsc2
+CONTAINER_NAME=ipsc-app-2 PORT=3002 docker-compose -p ipsc2 up -d
+
+# Instanz 3 – Port 3003, Projekt ipsc3
+CONTAINER_NAME=ipsc-app-3 PORT=3003 docker-compose -p ipsc3 up -d
+```
+
+**Instanzen verwalten:**
+
+```bash
+# Alle laufenden Container anzeigen
+docker ps
+
+# Spezifische Instanz stoppen
+docker-compose -p ipsc1 down
+
+# Protokolle der Instanz anzeigen
+docker-compose -p ipsc1 logs -f
+
+# Spezifische Instanz neustarten
+docker-compose -p ipsc1 restart
+```
+
+**Über das `-p`-Flag:**
+
+Das `-p`-Flag isoliert jedes Projekt mit seinen eigenen Containern, Netzwerken und Volumes. Ohne es teilen alle Instanzen denselben Projektnamen, was zu Konflikten führt und das gleichzeitige Ausführen mehrerer Instanzen verhindert.
+
+Jede Instanz erstellt automatisch:
+- Eindeutige `config.json` (Instanz-ID)
+- Eindeutige Datenbank (`data/{instance_id}.db`)
+- Separate Daten ohne Konflikte
+
+Die Datenbank (`{instance_id}.db`) wird im Verzeichnis `./data/` auf dem Host gespeichert und **bleibt zwischen Neustarts erhalten**.
+
+#### Option 2: Docker direkt
+
+```bash
+# Image bauen
+docker build -t ipsc:latest .
+
+# Container ausführen
+docker run -d \
+  --name ipsc-app \
+  -p 3001:5000 \
+  -v $(pwd)/data:/app/data \
+  ipsc:latest
+
+# Stoppen
+docker stop ipsc-app
+docker rm ipsc-app
+```
+
+#### Umgebungsvariablen
+
+In `docker-compose.yml` können Sie anpassen:
+
+| Variable | Beschreibung | Standardwert |
+|----------|---------|---------|
+| `PORT` | Host-Port-Zuordnung | `3001` |
+| `CONTAINER_NAME` | Docker-Containername | `ipsc-app` |
+| `SECRET_KEY` | Flask-Sitzungsschlüssel (SHA-256) | `default-secret-key-change-me` |
+
+**Beispiel:**
+```bash
+CONTAINER_NAME=my-app PORT=8080 SECRET_KEY="mein-super-geheimer-schlüssel" docker-compose up -d
+```
+
+## CLI-Skript (`winmss_results.py`)
+
+Extrahiert Daten aus der `.cab`-Datei und zeigt Ergebnisse im Terminal an.
+
+```bash
+# Gesamtübersicht + Tabellen pro Abteilung
+python3 winmss_results.py
+
+# Nur Gesamtübersicht
+python3 winmss_results.py --overall
+
+# Mit Stationsdetails
+python3 winmss_results.py --stages
+
+# Ranking auf jeder Station (A/B/C/D/M/PE)
+python3 winmss_results.py --stage-detail
+
+# Export zu CSV (in Excel öffnbar)
+python3 winmss_results.py --csv ergebnisse.csv
+
+# Andere .cab-Datei
+python3 winmss_results.py anderes_turnier.cab --csv ergebnisse.csv
+```
+
+## Web-Oberfläche (`app.py`)
+
+### Admin-Anmeldepanel
+
+Der Zugang zum Admin-Panel erfordert eine Anmeldung.
+
+**Standardkonto:**
+- **Benutzername:** `bartek`
+- **Passwort:** `IP$c2023` (NACH DEM ERSTEN LOGIN ÄNDERN!)
+
+Benutzerkonten werden in der SQLite-Datenbank mit SHA-256-Hashing gespeichert.
+
+### Hauptseite – Ergebnisanzeige
+
+- **Wettkampfauswahl** – Liste gespeicherter Wettkämpfe; Klick lädt Ergebnisse
+- **Wettkampfkopf** – Name, Datum, Ebene (L1/L2/L3), Anzahl Stationen und Teilnehmer
+- **Podium** – Karten der Top 3 mit Hit Factor / Punkten / Zeit
+- **Gesamtübersicht** – Sortierbare Tabelle aller Teilnehmer; Klick auf Zeile erweitert Stationsdetails
+- **Abteilungen-Tab** – Separate Tabellen pro Abteilung mit Ranking und % zum Abteilungsleiter
+- **Stationen-Tab** – Ranking auf ausgewählter Station mit farbigen Schusskolonnen
+- **Filter** – Suche nach Name, Filter nach Abteilung, Filter nach Kategorie
+- **CSV-Export** – Clientseitig generiert, in Excel öffnbar (UTF-8 mit BOM)
+- **Admin-Link** – Schaltfläche in der oberen Ecke führt zu `/admin`
+
+### Admin-Panel
+
+Verfügbar unter `/admin` – erfordert Anmeldung.
+
+#### Tab: Wettkämpfe
+- **Datei-Upload** – Drag & Drop oder Formularklick; automatische Erkennung
+- **Wettkampfliste** – Tabelle aller gespeicherten Wettkämpfe
+- **Wettkämpfe löschen** – Schaltflächen zum Löschen einzelner Wettkämpfe
+
+#### Tab: Rankings
+- **Ranking erstellen** – Name + Mehrfachauswahl von Wettkämpfen
+- **Ranking bearbeiten** – Name und zugeordnete Wettkämpfe ändern
+- **Ranking löschen** – Nur möglich, wenn das Ranking keine Wettkämpfe hat
+- **Rankings-Liste** – Übersicht von Namen und Zuordnungen
+
+#### Tab: Benutzer
+- **Passwort ändern** – Formular zum Ändern des Passworts
+- **Benutzer verwalten** – Tabelle aller Benutzer
+  - Neuen Benutzer erstellen
+  - Benutzer löschen (Schutz – letzten Benutzer nicht löschen)
+
+## Mehrsprachigkeit
+
+Die Anwendung unterstützt die dynamische Sprachänderung ohne Neuladen der Seite. Verfügbare Sprachen:
+
+- 🇵🇱 Polski
+- 🇬🇧 English
+- 🇩🇪 Deutsch
+- 🇨🇿 Čeština
+- 🇫🇷 Français
+
+Detaillierte Dokumentation zur Mehrsprachigkeit finden Sie in [MULTILINGUALITY_DE.md](MULTILINGUALITY_DE.md).
+
+## Lizenz
+
+Diese Software wird **kostenlos** zur Verfügung gestellt. Die vollständigen Lizenzbedingungen finden Sie in der [LICENSE_DE.md](LICENSE_DE.md)-Datei.
+
+### Wichtig:
+- **Keine Gewährleistung** – Der Autor haftet nicht für Fehler oder Schäden
+- **Jeder Benutzer** nutzt die Software **auf eigenes Risiko**
+- **Anforderung zum Behalten** – Der Abschnitt "Folgen Sie uns in den sozialen Medien" muss auf der Hauptseite verbleiben
+
+Eine [polnische Version der Lizenz](LICENSE.md) ist ebenfalls verfügbar.

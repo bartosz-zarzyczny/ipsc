@@ -199,6 +199,37 @@ def _prepare(cab_path: str) -> dict:
 # Routes
 # ---------------------------------------------------------------------------
 
+@app.route("/api/set-language", methods=["POST"])
+def set_language():
+    """Ustaw język aplikacji i zapisz w ciastku"""
+    data = request.get_json() or {}
+    lang = data.get('language', 'pl')
+    
+    if lang not in SUPPORTED_LANGUAGES:
+        return jsonify({"error": "Nieznany język"}), 400
+    
+    response = jsonify({"status": "ok", "language": lang})
+    response.set_cookie('language', lang, max_age=31536000)  # 1 rok
+    return response
+
+@app.route("/api/translations", methods=["GET"])
+def get_translations():
+    """Pobierz tłumaczenia dla wybranego języka"""
+    import json
+    lang = request.args.get('lang', 'pl')
+    
+    if lang not in SUPPORTED_LANGUAGES:
+        lang = 'pl'
+    
+    translation_file = os.path.join(os.path.dirname(__file__), f'static/i18n/{lang}.json')
+    
+    try:
+        with open(translation_file, 'r', encoding='utf-8') as f:
+            translations = json.load(f)
+        return jsonify(translations)
+    except FileNotFoundError:
+        return jsonify({"error": "Tłumaczenia nie znalezione"}), 404
+
 @app.route("/")
 def index():
     return render_template("index.html")

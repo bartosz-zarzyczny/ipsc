@@ -376,6 +376,18 @@ Mapping can be changed in `winmss_results.py` → `DIVISION_NAMES` dictionary.
 | `CLASSIFY.XML` | Competitor classifications |
 | `TAG.XML` | Tags (e.g. RO) |
 
+## Multilingual Support
+
+The application supports dynamic language switching without page reload. Available languages:
+
+- 🇵🇱 Polski
+- 🇬🇧 English
+- 🇩🇪 Deutsch
+- 🇨🇿 Čeština
+- 🇫🇷 Français
+
+Detailed documentation about multilingual support is available in the [MULTILINGUALITY_ENG.md](MULTILINGUALITY_ENG.md) file.
+
 ## License
 
 This software is provided **free of charge** on an "as-is" basis. Full license terms are available in the [LICENSE_EN.md](LICENSE_EN.md) file.

@@ -15,6 +15,69 @@
     }
     body { background: #eef1f6; font-size: .92rem; }
 
+    /* ── Language selector ───────────────────────────────────── */
+    .lang-selector {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 1050;
+    }
+    .lang-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.95);
+      color: #1a5276;
+      border: 2px solid #dee2e6;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.2s;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .lang-btn:hover {
+      transform: scale(1.05);
+      background: #fff;
+      border-color: #1a5276;
+    }
+    .lang-dropdown {
+      position: absolute;
+      top: 50px;
+      right: 0;
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 4px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      min-width: 160px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .lang-dropdown.d-none {
+      display: none !important;
+    }
+    .lang-option {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      background: #f3f5f9;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: background 0.2s;
+      text-align: center;
+    }
+    .lang-option:hover {
+      background: #e4e8f0;
+    }
+    .lang-option.active {
+      background: #1a5276;
+      color: #fff;
+    }
+
     /* ── Match header ───────────────────────────────────── */
     .match-header {
       background: linear-gradient(120deg, #0d1b2a 0%, #1b3a5c 60%, #1a6b96 100%);
@@ -179,6 +242,20 @@
 </head>
 <body>
 
+<!-- ══════════════════════════════ LANGUAGE SELECTOR ════════════════════════════════ -->
+<div class="lang-selector">
+  <button class="lang-btn" id="lang-toggle" onclick="toggleLangPanel()" title="Zmień język">
+    <span id="current-lang-flag">🇵🇱</span>
+  </button>
+  <div class="lang-dropdown d-none" id="lang-dropdown">
+    <button class="lang-option active" data-lang="pl" onclick="changeLanguage('pl')">🇵🇱 PL</button>
+    <button class="lang-option" data-lang="en" onclick="changeLanguage('en')">🇬🇧 EN</button>
+    <button class="lang-option" data-lang="de" onclick="changeLanguage('de')">🇩🇪 DE</button>
+    <button class="lang-option" data-lang="cz" onclick="changeLanguage('cz')">🇨🇿 CZ</button>
+    <button class="lang-option" data-lang="fr" onclick="changeLanguage('fr')">🇫🇷 FR</button>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════ UPLOAD ══════════════════════════════════ -->
 <div id="sec-upload">
   <div class="container py-5">
@@ -186,8 +263,8 @@
       <div class="col-lg-10">
         <div class="text-center mb-5">
           <div style="font-size:3.5rem">🏆</div>
-          <h1 class="fw-bold mt-2 mb-1">Wyniki IPSC</h1>
-          <p class="text-muted">Przeglądarka wyników zawodów IPSC / strzeleckich</p>
+          <h1 class="fw-bold mt-2 mb-1" data-i18n="header.title">Wyniki IPSC</h1>
+          <p class="text-muted" data-i18n="header.subtitle">Przeglądarka wyników zawodów IPSC / strzeleckich</p>
         </div>
 
         <div id="upload-err" class="alert alert-danger mt-4 d-none small"></div>
@@ -195,10 +272,10 @@
         <!-- Tab strip -->
         <div class="tab-strip d-flex px-2 mb-0">
           <button class="tab-btn active" id="tbtn-ranking" onclick="switchMainTab('ranking')">
-            <i class="bi bi-trophy"></i> Ranking
+            <i class="bi bi-trophy"></i> <span data-i18n="menu.ranking">Ranking</span>
           </button>
           <button class="tab-btn" id="tbtn-matches" onclick="switchMainTab('matches')">
-            <i class="bi bi-clock-history"></i> Zawody
+            <i class="bi bi-clock-history"></i> <span data-i18n="menu.matches">Zawody</span>
           </button>
         </div>
 
@@ -207,12 +284,12 @@
           <div class="card-body">
             <!-- Saved rankings -->
             <div id="saved-rankings" class="mt-2 d-none">
-              <h5 class="text-center mb-3"><i class="bi bi-trophy"></i> Dostępne rankingi</h5>
+              <h5 class="text-center mb-3"><i class="bi bi-trophy"></i> <span data-i18n="messages.selectRankings">Dostępne rankingi</span></h5>
               <div id="ranking-list"></div>
             </div>
 
             <div id="no-rankings" class="text-center text-muted mt-4 d-none">
-              <p>Brak rankingów. Dodaj je w <a href="/admin">panelu admina</a>.</p>
+              <p><span data-i18n="messages.noRankings">Brak rankingów. Dodaj je w</span> <a href="/admin" data-i18n="messages.panelAdmina">panelu admina</a>.</p>
             </div>
           </div>
         </div>
@@ -222,19 +299,19 @@
           <div class="card-body">
             <!-- Saved matches -->
             <div id="saved-matches" class="mt-2 d-none">
-              <h5 class="text-center mb-3"><i class="bi bi-clock-history"></i> Wybierz zawody</h5>
+              <h5 class="text-center mb-3"><i class="bi bi-clock-history"></i> <span data-i18n="messages.selectMatches">Wybierz zawody</span></h5>
               <div id="match-list"></div>
             </div>
 
             <div id="no-matches" class="text-center text-muted mt-4 d-none">
-              <p>Brak zawodów. Dodaj je w <a href="/admin">panelu admina</a>.</p>
+              <p><span data-i18n="messages.noMatches">Brak zawodów. Dodaj je w</span> <a href="/admin" data-i18n="messages.panelAdmina">panelu admina</a>.</p>
             </div>
           </div>
         </div>
 
         <!-- Social Media Section -->
         <div class="social-section">
-          <h3 class="text-center">Śledź nas w mediach społecznych</h3>
+          <h3 class="text-center" data-i18n="header.social">Śledź nas w mediach społecznych</h3>
           <p class="text-center">Jeśli aplikacja się Ci podoba, zasubskrybuj me kanały, gdzie dzielę się treściami o strzelaniu sportowym i zawodach IPSC.</p>
           <p class="text-center" style="font-size: 0.95rem; opacity: 0.85;">Projekt dostępny na <a href="https://github.com/bartosz-zarzyczny/ipsc" target="_blank" rel="noopener noreferrer" style="color: #fff; text-decoration: underline;">GitHub</a></p>
           <div class="social-links">
@@ -281,9 +358,9 @@
       </div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      <button class="btn btn-sm btn-light" onclick="downloadPDF()"><i class="bi bi-file-pdf"></i> PDF</button>
-      <button class="btn btn-sm btn-light" onclick="downloadCSV()"><i class="bi bi-download"></i> CSV</button>
-      <button class="btn btn-sm btn-outline-light" onclick="resetUI()"><i class="bi bi-arrow-left"></i> Wróć</button>
+      <button class="btn btn-sm btn-light" onclick="downloadPDF()"><i class="bi bi-file-pdf"></i> <span data-i18n="buttons.pdf">PDF</span></button>
+      <button class="btn btn-sm btn-light" onclick="downloadCSV()"><i class="bi bi-download"></i> <span data-i18n="buttons.csv">CSV</span></button>
+      <button class="btn btn-sm btn-outline-light" onclick="resetUI()"><i class="bi bi-arrow-left"></i> <span data-i18n="buttons.back">Wróć</span></button>
     </div>
   </div>
 
@@ -298,12 +375,12 @@
           
           <div class="col-md-3">
             <select class="form-select form-select-sm" id="f-div" onchange="applyFilters()">
-              <option value="">Wszystkie dywizje</option>
+              <option value="" data-i18n="filters.allDivisions">Wszystkie dywizje</option>
             </select>
           </div>
           <div class="col-md-3">
             <select class="form-select form-select-sm" id="f-cat" onchange="applyFilters()">
-              <option value="">Wszystkie kategorie</option>
+              <option value="" data-i18n="filters.allCategories">Wszystkie kategorie</option>
             </select>
           </div>
           <div class="col-md-2 text-muted small text-end" id="f-count"></div>
@@ -312,9 +389,9 @@
 
       <!-- Tab strip -->
       <div class="tab-strip d-flex px-2">
-        <button class="tab-btn active" id="tbtn-overall"    onclick="switchTab('overall')">   <i class="bi bi-list-ol"></i>    Zestawienie ogólne</button>
-        <button class="tab-btn"        id="tbtn-divisions"  onclick="switchTab('divisions')"> <i class="bi bi-grid-3x3-gap"></i> Dywizje</button>
-        <button class="tab-btn"        id="tbtn-stages"     onclick="switchTab('stages')">    <i class="bi bi-bar-chart-steps"></i> Tory</button>
+        <button class="tab-btn active" id="tbtn-overall"    onclick="switchTab('overall')">   <i class="bi bi-list-ol"></i>    <span data-i18n="tabs.overall">Zestawienie ogólne</span></button>
+        <button class="tab-btn"        id="tbtn-divisions"  onclick="switchTab('divisions')"> <i class="bi bi-grid-3x3-gap"></i> <span data-i18n="tabs.divisions">Dywizje</span></button>
+        <button class="tab-btn"        id="tbtn-stages"     onclick="switchTab('stages')">    <i class="bi bi-bar-chart-steps"></i> <span data-i18n="tabs.stages">Tory</span></button>
       </div>
 
       <!-- ── Overall ─────────────────────────────────────────── -->
@@ -350,6 +427,123 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   MULTILINGUAL SUPPORT - SIMPLE SYSTEM
+═══════════════════════════════════════════════════════════════════════════ */
+let translations = {};
+let currentLanguage = 'pl';
+
+// Load translations from JSON file
+async function loadTranslations(lang) {
+  try {
+    const response = await fetch(`/static/i18n/${lang}.json`);
+    if (!response.ok) throw new Error(`Failed to load ${lang}`);
+    translations = await response.json();
+    currentLanguage = lang;
+    
+    // Save language to cookie
+    document.cookie = `language=${lang}; max-age=31536000; path=/`;
+    
+    // Update HTML language attribute
+    document.documentElement.lang = lang;
+    
+    // Update all UI text
+    updateUIText();
+  } catch (error) {
+    console.error('Translation load error:', error);
+  }
+}
+
+function getTranslation(key) {
+  const parts = key.split('.');
+  let value = translations;
+  for (const part of parts) {
+    value = value?.[part];
+  }
+  return value || key;
+}
+
+function updateUIText() {
+  document.querySelectorAll('[data-i18n]').forEach(element => {
+    const key = element.getAttribute('data-i18n');
+    const text = getTranslation(key);
+    element.textContent = text;
+  });
+}
+
+// Helper to get translated UI text
+function getTrans(key) {
+  return getTranslation(key) || key;
+}
+
+// Helper to get translated labels for COLS
+function getColLabel(key) {
+  const labels = {
+    'rank': 'table.place',
+    'comp_id': 'table.number',
+    'name': 'table.competitor',
+    'division': 'table.division',
+    'category': 'table.category',
+    'total_points': 'table.points',
+    'total_time': 'table.time',
+    'overall_hf': 'table.hf',
+    'pct': 'table.percentage',
+  };
+  return getTrans(labels[key] || key);
+}
+
+function toggleLangPanel() {
+  document.getElementById('lang-dropdown').classList.toggle('d-none');
+}
+
+function changeLanguage(lang) {
+  // Update flag
+  const flags = { pl: '🇵🇱', en: '🇬🇧', de: '🇩🇪', cz: '🇨🇿', fr: '🇫🇷' };
+  document.getElementById('current-lang-flag').textContent = flags[lang] || '🇵🇱';
+  
+  // Update active button
+  document.querySelectorAll('.lang-option').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === lang);
+  });
+  
+  // Load new translations
+  loadTranslations(lang);
+  
+  // Close dropdown
+  document.getElementById('lang-dropdown').classList.add('d-none');
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', async () => {
+  // Set data-i18n attributes for social media section if not already set
+  const socialDescPara = document.querySelector('.social-section > p:nth-of-type(1)');
+  if (socialDescPara && !socialDescPara.hasAttribute('data-i18n')) {
+    socialDescPara.setAttribute('data-i18n', 'header.socialDesc');
+  }
+  
+  const githubPara = document.querySelector('.social-section > p:nth-of-type(2)');
+  if (githubPara && !githubPara.hasAttribute('data-i18n')) {
+    githubPara.setAttribute('data-i18n', 'header.githubPrefix');
+  }
+
+  const savedLang = document.cookie.split('; ')
+    .find(row => row.startsWith('language='))
+    ?.split('=')[1] || 'pl';
+  
+  // Update flag for saved language
+  const flags = { pl: '🇵🇱', en: '🇬🇧', de: '🇩🇪', cz: '🇨🇿', fr: '🇫🇷' };
+  document.getElementById('current-lang-flag').textContent = flags[savedLang] || '🇵🇱';
+  
+  // Mark active button
+  document.querySelectorAll('.lang-option').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === savedLang);
+  });
+  
+  // Load translations
+  await loadTranslations(savedLang);
+});
+
+
 /* ═══════════════════════════════════════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -681,7 +875,7 @@ function initRankingResults(rankingData) {
 
   // Populate division filter with default to Open
   const fdiv = document.getElementById('f-div');
-  fdiv.innerHTML = '<option value="">— wszystkie dywizje —</option>';
+  fdiv.innerHTML = `<option value="">— ${getTrans('filters.allDivisions')} —</option>`;
   [...new Set(merged.map(c => c.division))].sort().forEach(div => {
     const opt = document.createElement('option');
     opt.value = opt.textContent = div;
@@ -692,7 +886,7 @@ function initRankingResults(rankingData) {
 
   // Populate category filter with available categories
   const fcat = document.getElementById('f-cat');
-  fcat.innerHTML = '<option value="">— wszystkie kategorie —</option>';
+  fcat.innerHTML = `<option value="">— ${getTrans('filters.allCategories')} —</option>`;
   const categories = [...new Set(merged.map(c => c.category).filter(Boolean))].sort();
   categories.forEach(cat => {
     const opt = document.createElement('option');
@@ -734,15 +928,17 @@ function renderRankingTable() {
   filtered = filtered.filter(c => !c.is_disq).sort((a,b) => a.rank - b.rank);
 
   // Update count
-  document.getElementById('f-count').textContent = `${filtered.length} zawodników`;
+  document.getElementById('f-count').textContent = `${filtered.length} ${getTrans('results.competitors')}`;
 
   // Build header with match names
-  let headerHTML = '<th style="width: 30px; text-align: center; padding: 7px 2px !important">#</th>';
-  headerHTML += '<th style="width: 200px">Zawodnik</th>';
+  let headerHTML = `<th style="width: 30px; text-align: center; padding: 7px 2px !important">${getTrans('table.place')}</th>`;
+  headerHTML += `<th style="width: 200px">${getTrans('table.competitor')}</th>`;
   
   const topMatchesCount = G.rankingInfo.topMatchesCount;
   const totalMatches = G.rankingMatches.length;
-  const topLabel = topMatchesCount > 0 ? ` (najlepsze ${topMatchesCount} z ${totalMatches})` : ' (wszystkie)';
+  const bestLabel = getTrans('results.best') || 'best';
+  const allLabel = getTrans('results.all') || 'all';
+  const topLabel = topMatchesCount > 0 ? ` (${bestLabel} ${topMatchesCount} ${getTrans('results.of')} ${totalMatches})` : ` (${allLabel})`;
   
   G.rankingMatches.forEach(m => {
     headerHTML += `<th style="text-align: center; width: 130px; font-size: 0.85rem; vertical-align: top; line-height: 1.3; padding: 8px 4px !important" title="${esc(m.name)}">
@@ -750,7 +946,7 @@ function renderRankingTable() {
     </th>`;
   });
   
-  headerHTML += `<th style="text-align: center; font-weight: bold; width: 180px">Razem${topLabel}</th>`;
+  headerHTML += `<th style="text-align: center; font-weight: bold; width: 180px">${getTrans('results.total')}${topLabel}</th>`;
   
   document.getElementById('overall-head').innerHTML = headerHTML;
 
@@ -788,7 +984,7 @@ function renderRankingTable() {
     return row;
   }).join('');
 
-  document.getElementById('overall-body').innerHTML = bodyHTML || '<tr><td colspan="100" class="text-center text-muted py-4">Brak wyników dla wybranych filtrów</td></tr>';
+  document.getElementById('overall-body').innerHTML = bodyHTML || `<tr><td colspan="100" class="text-center text-muted py-4">${getTrans('messages.noResults')}</td></tr>`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -809,9 +1005,9 @@ function renderPodium(data) {
     <div class="col-md-12 col-lg-12">
       <div class="card shadow-sm">
         <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-4">
-          <div><span class="text-muted small">Zawodnicy</span><br><span class="stat-num">${data.competitors.length}</span></div>
-          <div><span class="text-muted small">Tory</span><br><span class="stat-num">${data.stages.length}</span></div>
-          ${dsqCount ? `<div><span class="text-muted small">DSQ</span><br><span class="stat-num text-danger">${dsqCount}</span></div>` : ''}
+          <div><span class="text-muted small">${getTrans('meta.competitors')}</span><br><span class="stat-num">${data.competitors.length}</span></div>
+          <div><span class="text-muted small">${getTrans('meta.stages')}</span><br><span class="stat-num">${data.stages.length}</span></div>
+          ${dsqCount ? `<div><span class="text-muted small">${getTrans('meta.disqualified')}</span><br><span class="stat-num text-danger">${dsqCount}</span></div>` : ''}
           <div class="ms-auto">${divSummary}</div>
         </div>
       </div>
@@ -853,7 +1049,7 @@ function applyFilters() {
     const filtered = getFiltered();
     document.getElementById('f-count').textContent =
       filtered.length === G.data.competitors.length
-        ? `${filtered.length} zawodników`
+        ? `${filtered.length} ${getTrans('results.competitors')}`
         : `${filtered.length} / ${G.data.competitors.length}`;
 
     const divFilter = document.getElementById('f-div').value;
@@ -907,17 +1103,6 @@ function sortArrow(col) {
 /* ═══════════════════════════════════════════════════════════════════════════
    OVERALL TABLE
 ═══════════════════════════════════════════════════════════════════════════ */
-const COLS = [
-  { key:'rank',         label:'#',           title:'Miejsce ogólne' },
-  { key:'comp_id',      label:'Nr',          title:'Numer startowy' },
-  { key:'name',         label:'Zawodnik',    title:'Nazwisko i imię' },
-  { key:'division',     label:'Dywizja',     title:'Dywizja' },
-  { key:'category',     label:'Kat.',        title:'Kategoria' },
-  { key:'total_points', label:'Pkt',         title:'Punkty łącznie' },
-  { key:'total_time',   label:'Czas',        title:'Łączny czas [s]' },
-  { key:'overall_hf',   label:'HF Overall',  title:'Hit Factor Overall' },
-  { key:'pct',          label:'% lidera',    title:'Procent do lidera' },
-];
 
 function renderOverall(list) {
   // Czy aktywny jest filtr dywizji?
@@ -944,17 +1129,25 @@ function renderOverall(list) {
   // Najlepsze punkty w aktualnie filtrowanej liście (do obliczenia % lidera)
   const bestPts = data.filter(c => !c.is_disq).reduce((mx, c) => Math.max(mx, getPoints(c)), 0);
 
-  // Head
-  const colsHtml = COLS.map(c =>
-    `<th onclick="doSort('${c.key}')" title="${c.title}">${c.label}${sortArrow(c.key)}</th>`
-  );
-  document.getElementById('overall-head').innerHTML = colsHtml.join('') + '<th title="Rozwiń szczegóły torów"><i class="bi bi-chevron-down"></i></th>';
+  // Head with translated labels
+  const headLabels = [
+    `<th onclick="doSort('rank')" title="${getTrans('table.place')}">${getTrans('table.place')}${sortArrow('rank')}</th>`,
+    `<th onclick="doSort('comp_id')" title="${getTrans('table.number')}">${getTrans('table.number')}${sortArrow('comp_id')}</th>`,
+    `<th onclick="doSort('name')" title="${getTrans('table.competitor')}">${getTrans('table.competitor')}${sortArrow('name')}</th>`,
+    `<th onclick="doSort('division')" title="${getTrans('table.division')}">${getTrans('table.division')}${sortArrow('division')}</th>`,
+    `<th onclick="doSort('category')" title="${getTrans('table.category')}">${getTrans('table.category')}${sortArrow('category')}</th>`,
+    `<th onclick="doSort('total_points')" title="${getTrans('table.points')}">${getTrans('table.points')}${sortArrow('total_points')}</th>`,
+    `<th onclick="doSort('total_time')" title="${getTrans('table.time')}">${getTrans('table.time')}${sortArrow('total_time')}</th>`,
+    `<th onclick="doSort('overall_hf')" title="${getTrans('table.hf')}">${getTrans('table.hf')}${sortArrow('overall_hf')}</th>`,
+    `<th onclick="doSort('pct')" title="${getTrans('table.percentage')}">${getTrans('table.percentage')}${sortArrow('pct')}</th>`,
+  ];
+  document.getElementById('overall-head').innerHTML = headLabels.join('') + `<th title="${getTrans('table.expand')}"><i class="bi bi-chevron-down"></i></th>`;
 
   // Body
   document.getElementById('overall-body').innerHTML = data.map((c, index) => {
     const cPts = getPoints(c);
     const rc  = c.is_disq ? 'tr-dsq' : index === 0 ? 'tr-1' : index === 1 ? 'tr-2' : index === 2 ? 'tr-3' : '';
-    const rnk = c.is_disq ? '<span class="badge bg-danger">DSQ</span>' : rankEmoji(index + 1);
+    const rnk = c.is_disq ? `<span class="badge bg-danger">${getTrans('results.dsq')}</span>` : rankEmoji(index + 1);
     const localPct = bestPts > 0 ? cPts / bestPts * 100 : 0;
     const pct = c.is_disq ? '-' : `<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${localPct}%"></div></div><span>${localPct.toFixed(1)}%</span></div>`;
     const hf  = c.is_disq ? '-' : `<span class="hf">${c.overall_hf.toFixed(4)}</span>`;
@@ -1004,13 +1197,13 @@ function toggleDetail(row, compId) {
   const detail = document.createElement('tr');
   detail.className = 'tr-detail stage-sub';
   const divFilter = document.getElementById('f-div').value;
-  const totalCols = COLS.length + (divFilter ? 1 : 0) + 1;
+  const totalCols = 9 + (divFilter ? 1 : 0) + 1;
   detail.innerHTML = `<td colspan="${totalCols}">
     <div style="padding:8px 12px">
       <table class="table table-sm table-bordered mb-0" style="font-size:.8rem">
         <thead class="table-light"><tr>
-          <th>Tor</th><th>A</th><th>B</th><th>C</th><th>D</th>
-          <th>M</th><th>PE</th><th>Pkt</th><th>Czas</th><th>HF</th><th>% w dyw.</th>
+          <th>${getTrans('table.stage')}</th><th>${getTrans('table.alpha')}</th><th>${getTrans('table.beta')}</th><th>${getTrans('table.charlie')}</th><th>${getTrans('table.delta')}</th>
+          <th>${getTrans('table.misses')}</th><th>${getTrans('table.procedural')}</th><th>${getTrans('table.points')}</th><th>${getTrans('table.time')}</th><th>${getTrans('table.hf')}</th><th>${getTrans('table.percentageDivision')}</th>
         </tr></thead>
         <tbody>${stageRows}</tbody>
       </table>
@@ -1042,8 +1235,8 @@ function renderDivisions(list) {
       <div class="table-responsive">
       <table class="res-table">
         <thead><tr>
-          <th>#&nbsp;Dyw.</th><th>#&nbsp;Og.</th><th>Zawodnik</th><th>Kat.</th>
-          <th>Pkt</th><th>Czas</th><th>HF</th><th>%&nbsp;lidera</th><th>%&nbsp;w&nbsp;dyw.</th>
+          <th>${getTrans('table.divisionRank')}</th><th>${getTrans('table.place')}</th><th>${getTrans('table.competitor')}</th><th>${getTrans('table.category')}</th>
+          <th>${getTrans('table.points')}</th><th>${getTrans('table.time')}</th><th>${getTrans('table.hf')}</th><th>${getTrans('table.percentage')}</th><th>${getTrans('table.percentageDivision')}</th>
         </tr></thead>
         <tbody>`;
 
@@ -1063,15 +1256,15 @@ function renderDivisions(list) {
       </tr>`;
     });
     disq.forEach(c => {
-      html += `<tr class="tr-dsq"><td><span class="badge bg-danger">DSQ</span></td>
-        <td>DSQ</td><td>${esc(c.name)}</td><td>${catBadge(c.category)}</td>
-        <td colspan="5" class="text-danger fst-italic">Dyskwalifikowany</td></tr>`;
+      html += `<tr class="tr-dsq"><td><span class="badge bg-danger">${getTrans('results.dsq')}</span></td>
+        <td>${getTrans('results.dsq')}</td><td>${esc(c.name)}</td><td>${catBadge(c.category)}</td>
+        <td colspan="5" class="text-danger fst-italic">${getTrans('results.disqualified')}</td></tr>`;
     });
 
     html += `</tbody></table></div></div>`;
   }
 
-  document.getElementById('div-content').innerHTML = html || '<p class="text-muted p-3">Brak wyników dla wybranych filtrów.</p>';
+  document.getElementById('div-content').innerHTML = html || `<p class="text-muted p-3">${getTrans('messages.noResults')}</p>`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1097,10 +1290,10 @@ function renderStage(idx, filtered) {
   const disq   = pairs.filter(x => x.sc.disq);
 
   document.getElementById('stage-head').innerHTML = `
-    <th>#&nbsp;Tor</th><th>#&nbsp;Og.</th><th>Zawodnik</th><th>Dywizja</th><th>Kat.</th>
-    <th title="Alpha/Popper">A</th><th title="Beta">B</th><th title="Charlie">C</th><th title="Delta">D</th>
-    <th title="Chybień">M</th><th title="No-Shoot">NS</th><th title="Procedural Errors">PE</th>
-    <th>Pkt</th><th>Czas</th><th>HF</th><th>%&nbsp;w&nbsp;dyw.</th>`;
+    <th>${getTrans('table.stage')}&nbsp;#</th><th>#&nbsp;${getTrans('table.place')}</th><th>${getTrans('table.competitor')}</th><th>${getTrans('table.division')}</th><th>${getTrans('table.category')}</th>
+    <th>${getTrans('table.alpha')}</th><th>${getTrans('table.beta')}</th><th>${getTrans('table.charlie')}</th><th>${getTrans('table.delta')}</th>
+    <th>${getTrans('table.misses')}</th><th>${getTrans('table.noShoot')}</th><th>${getTrans('table.procedural')}</th>
+    <th>${getTrans('table.points')}</th><th>${getTrans('table.time')}</th><th>${getTrans('table.hf')}</th><th>${getTrans('table.percentageDivision')}</th>`;
 
   let rows = active.map((x, i) => {
     const { c, sc } = x;
@@ -1109,7 +1302,7 @@ function renderStage(idx, filtered) {
     const rc  = i===0?'tr-1':i===1?'tr-2':i===2?'tr-3':'';
     return `<tr class="${rc}">
       <td>${rankEmoji(i+1)}</td>
-      <td class="text-muted">${typeof c.rank === 'number' ? c.rank : 'DSQ'}</td>
+      <td class="text-muted">${typeof c.rank === 'number' ? c.rank : getTrans('results.dsq')}</td>
       <td>${esc(c.name)}${c.female?' <i class="bi bi-gender-female text-danger"></i>':''}</td>
       <td>${divBadge(c.division)}</td>
       <td>${catBadge(c.category)}</td>
@@ -1130,11 +1323,11 @@ function renderStage(idx, filtered) {
   rows += disq.map(x => {
     const { c } = x;
     return `<tr class="tr-dsq">
-      <td><span class="badge bg-danger">DSQ</span></td>
-      <td>${typeof c.rank === 'number' ? c.rank : 'DSQ'}</td>
+      <td><span class="badge bg-danger">${getTrans('results.dsq')}</span></td>
+      <td>${typeof c.rank === 'number' ? c.rank : getTrans('results.dsq')}</td>
       <td>${esc(c.name)}</td>
       <td>${divBadge(c.division)}</td><td>${catBadge(c.category)}</td>
-      <td colspan="11" class="text-danger fst-italic">Dyskwalifikowany</td>
+      <td colspan="11" class="text-danger fst-italic">${getTrans('results.disqualified')}</td>
     </tr>`;
   }).join('');
 

@@ -1,0 +1,93 @@
+{
+  "menu": {
+    "ranking": "Classement",
+    "matches": "Compétitions",
+    "admin": "Panneau d'administration"
+  },
+  "messages": {
+    "loading": "Traitement du fichier…",
+    "error": "Erreur",
+    "success": "Succès",
+    "processing": "Traitement…",
+    "noRankings": "Aucun classement. Ajoutez-les dans",
+    "panelAdmina": "le panneau d'administration",
+    "noMatches": "Aucune compétition. Ajoutez-les dans",
+    "selectMatches": "Sélectionnez les compétitions",
+    "selectRankings": "Classements disponibles",
+    "noResults": "Aucun résultat pour les filtres sélectionnés"
+  },
+  "header": {
+    "title": "Résultats IPSC",
+    "subtitle": "Visionneuse de résultats des compétitions IPSC / tir sportif",
+    "social": "Suivez-nous sur les réseaux sociaux",
+    "socialDesc": "Si vous aimez cette application, abonnez-vous à mes chaînes où je partage du contenu sur le tir sportif et les compétitions IPSC.",
+    "githubPrefix": "Le projet est disponible sur"
+  },
+  "tabs": {
+    "overall": "Classement général",
+    "divisions": "Divisions",
+    "stages": "Épreuves"
+  },
+  "buttons": {
+    "back": "Retour",
+    "download": "Télécharger",
+    "pdf": "PDF",
+    "csv": "CSV"
+  },
+  "meta": {
+    "date": "Date",
+    "level": "Niveau",
+    "stages": "Épreuves",
+    "competitors": "Compétiteurs",
+    "matches": "Compétitions",
+    "disqualified": "DSQ"
+  },
+  "filters": {
+    "allDivisions": "Toutes les divisions",
+    "allCategories": "Toutes les catégories",
+    "search": "Rechercher"
+  },
+  "results": {
+    "podium": "Podium",
+    "disqualified": "Disqualifié",
+    "dsq": "DSQ",
+    "competitorNotFound": "Compétiteur non trouvé",
+    "competitors": "compétiteurs",
+    "best": "meilleur",
+    "all": "tous",
+    "of": "sur",
+    "total": "Total"
+  },
+  "table": {
+    "place": "#",
+    "number": "n°",
+    "competitor": "Compétiteur",
+    "division": "Division",
+    "category": "Catégorie",
+    "points": "Points",
+    "time": "Temps",
+    "hf": "HF Global",
+    "percentage": "% Leader",
+    "percentageDivision": "% Div.",
+    "divisionRank": "# Div.",
+    "stageTime": "Temps",
+    "expand": "Développer les détails des épreuves",
+    "stage": "Épreuve",
+    "alpha": "A",
+    "beta": "B",
+    "charlie": "C",
+    "delta": "D",
+    "misses": "C",
+    "noShoot": "NS",
+    "procedural": "PE",
+    "disqualified": "Disqualifié"
+  },
+  "language": {
+    "select": "Langue",
+    "polish": "Polski",
+    "english": "English",
+    "german": "Deutsch",
+    "czech": "Čeština",
+    "french": "Français"
+  }
+}

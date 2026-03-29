@@ -376,6 +376,18 @@ Mapowanie można zmienić w `winmss_results.py` → słownik `DIVISION_NAMES`.
 | `CLASSIFY.XML` | Klasyfikacje zawodników |
 | `TAG.XML` | Tagi (np. RO) |
 
+## Wielojęzyczność
+
+Aplikacja wspiera dynamiczną zmianę języka bez przeładowania strony. Dostępne są następujące języki:
+
+- 🇵🇱 Polski
+- 🇬🇧 English
+- 🇩🇪 Deutsch
+- 🇨🇿 Čeština
+- 🇫🇷 Français
+
+Szczegółowa dokumentacja dotycząca implementacji wielojęzyczności dostępna jest w pliku [MULTILINGUALITY.md](MULTILINGUALITY.md).
+
 ## Licencja
 
 Niniejsze oprogramowanie jest udostępniane **za darmo** na zasadzie "jest jaki jest". Pełne warunki licencji dostępne są w pliku [LICENSE.md](LICENSE.md).

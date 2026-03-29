@@ -1,0 +1,93 @@
+{
+  "menu": {
+    "ranking": "Ranking",
+    "matches": "Zawody",
+    "admin": "Panel admina"
+  },
+  "messages": {
+    "loading": "Przetwarzanie pliku…",
+    "error": "Błąd",
+    "success": "Sukces",
+    "processing": "Przetwarzanie…",
+    "noRankings": "Brak rankingów. Dodaj je w",
+    "panelAdmina": "panelu admina",
+    "noMatches": "Brak zawodów. Dodaj je w",
+    "selectMatches": "Wybierz zawody",
+    "selectRankings": "Dostępne rankingi",
+    "noResults": "Brak wyników dla wybranych filtrów"
+  },
+  "header": {
+    "title": "Wyniki IPSC",
+    "subtitle": "Przeglądarka wyników zawodów IPSC / strzeleckich",
+    "social": "Śledź nas w mediach społecznych",
+    "socialDesc": "Jeśli aplikacja się Ci podoba, zasubskrybuj moje kanały, gdzie dzielę się treściami o strzelaniu sportowym i zawodach IPSC.",
+    "githubPrefix": "Projekt dostępny na"
+  },
+  "tabs": {
+    "overall": "Zestawienie ogólne",
+    "divisions": "Dywizje",
+    "stages": "Tory"
+  },
+  "buttons": {
+    "back": "Wróć",
+    "download": "Pobierz",
+    "pdf": "PDF",
+    "csv": "CSV"
+  },
+  "meta": {
+    "date": "Data",
+    "level": "Poziom",
+    "stages": "Tory",
+    "competitors": "Zawodnicy",
+    "matches": "Zawody",
+    "disqualified": "DSQ"
+  },
+  "filters": {
+    "allDivisions": "Wszystkie dywizje",
+    "allCategories": "Wszystkie kategorie",
+    "search": "Szukaj"
+  },
+  "results": {
+    "podium": "Podium",
+    "disqualified": "Dyskwalifikowany",
+    "dsq": "DSQ",
+    "competitorNotFound": "Zawodnik nie znaleziony",
+    "competitors": "zawodników",
+    "best": "najlepsze",
+    "all": "wszystkie",
+    "of": "z",
+    "total": "Razem"
+  },
+  "table": {
+    "place": "#",
+    "number": "Nr",
+    "competitor": "Zawodnik",
+    "division": "Dywizja",
+    "category": "Kat.",
+    "points": "Pkt",
+    "time": "Czas",
+    "hf": "HF Overall",
+    "percentage": "% lidera",
+    "percentageDivision": "% w dyw.",
+    "divisionRank": "# Dyw.",
+    "stageTime": "Czas",
+    "expand": "Rozwiń szczegóły torów",
+    "stage": "Tor",
+    "alpha": "A",
+    "beta": "B",
+    "charlie": "C",
+    "delta": "D",
+    "misses": "M",
+    "noShoot": "NS",
+    "procedural": "PE",
+    "disqualified": "Dyskwalifikowany"
+  },
+  "language": {
+    "select": "Język",
+    "polish": "Polski",
+    "english": "English",
+    "german": "Deutsch",
+    "czech": "Čeština",
+    "french": "Français"
+  }
+}

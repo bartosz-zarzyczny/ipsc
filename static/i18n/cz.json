@@ -1,0 +1,93 @@
+{
+  "menu": {
+    "ranking": "Žebříček",
+    "matches": "Závody",
+    "admin": "Správce"
+  },
+  "messages": {
+    "loading": "Zpracování souboru…",
+    "error": "Chyba",
+    "success": "Úspěch",
+    "processing": "Zpracování…",
+    "noRankings": "Žádné žebříčky. Přidejte je v",
+    "panelAdmina": "panelu správce",
+    "noMatches": "Žádné závody. Přidejte je v",
+    "selectMatches": "Vyberte závody",
+    "selectRankings": "Dostupné žebříčky",
+    "noResults": "Žádné výsledky pro vybrané filtry"
+  },
+  "header": {
+    "title": "Výsledky IPSC",
+    "subtitle": "Prohlížeč výsledků soutěží IPSC / sportovní střelby",
+    "social": "Sledujte nás na sociálních sítích",
+    "socialDesc": "Pokud se vám tato aplikace líbí, přihlaste se k odběru mých kanálů, kde se dělím o obsah o sportovní střelbě a soutěžích IPSC.",
+    "githubPrefix": "Projekt je dostupný na"
+  },
+  "tabs": {
+    "overall": "Celkové pořadí",
+    "divisions": "Divize",
+    "stages": "Střelecké stanoviště"
+  },
+  "buttons": {
+    "back": "Zpět",
+    "download": "Stáhnout",
+    "pdf": "PDF",
+    "csv": "CSV"
+  },
+  "meta": {
+    "date": "Datum",
+    "level": "Úroveň",
+    "stages": "Střelecká stanoviště",
+    "competitors": "Závodníci",
+    "matches": "Závody",
+    "disqualified": "DSQ"
+  },
+  "filters": {
+    "allDivisions": "Všechny divize",
+    "allCategories": "Všechny kategorie",
+    "search": "Hledat"
+  },
+  "results": {
+    "podium": "Pódium",
+    "disqualified": "Diskvalifikován",
+    "dsq": "DSQ",
+    "competitorNotFound": "Závodník nenalezen",
+    "competitors": "závodníků",
+    "best": "nejlepší",
+    "all": "všechny",
+    "of": "z",
+    "total": "Celkem"
+  },
+  "table": {
+    "place": "#",
+    "number": "č.",
+    "competitor": "Závodník",
+    "division": "Divize",
+    "category": "Kategorie",
+    "points": "Body",
+    "time": "Čas",
+    "hf": "HF Celkem",
+    "percentage": "% Vůdce",
+    "percentageDivision": "% v Div.",
+    "divisionRank": "# Div.",
+    "stageTime": "Čas",
+    "expand": "Rozbalit detaily střelby",
+    "stage": "Střelba",
+    "alpha": "A",
+    "beta": "B",
+    "charlie": "C",
+    "delta": "D",
+    "misses": "C",
+    "noShoot": "NS",
+    "procedural": "PE",
+    "disqualified": "Diskvalifikován"
+  },
+  "language": {
+    "select": "Jazyk",
+    "polish": "Polski",
+    "english": "English",
+    "german": "Deutsch",
+    "czech": "Čeština",
+    "french": "Français"
+  }
+}
