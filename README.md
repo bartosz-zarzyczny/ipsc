@@ -1,4 +1,4 @@
-# IPSC — WinMSS Results Viewer
+# IPSC — Wyniki IPSC
 
 Narzędzie do wyciągania i przeglądania wyników zawodów strzeleckich IPSC z plików WinMSS `.cab`.
 
