@@ -273,7 +273,7 @@
   <div class="match-header d-flex align-items-start justify-content-between flex-wrap gap-3">
     <div>
       <h2 id="r-name"></h2>
-      <div class="match-meta">
+      <div class="match-meta" id="match-meta-info">
         <span><i class="bi bi-calendar3"></i> <span id="r-date"></span></span>
         <span><i class="bi bi-trophy"></i> Poziom&nbsp;L<span id="r-level"></span></span>
         <span><i class="bi bi-list-ol"></i> <span id="r-stages"></span>&nbsp;torów</span>
@@ -519,6 +519,9 @@ function initResults(data) {
   G.sort    = { col: 'rank', dir: 'asc' };
   G.stageIdx = 0;
 
+  // Show match meta info (for matches, not rankings)
+  document.getElementById('match-meta-info').style.display = '';
+
   // Header
   document.getElementById('r-name').textContent   = data.match.name;
   document.getElementById('r-date').textContent   = data.match.date;
@@ -573,6 +576,9 @@ function initRankingResults(rankingData) {
     show($upload);
     return;
   }
+
+  // Hide match meta info (for rankings, not matches)
+  document.getElementById('match-meta-info').style.display = 'none';
 
   const topMatchesCount = rankingData.top_matches_count || 0; // 0 = wszystkie
   
