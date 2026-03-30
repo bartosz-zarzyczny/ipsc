@@ -912,9 +912,20 @@ function initRankingResults(rankingData) {
           female: comp.female,
           is_disq: comp.is_disq,
           matchResults: [],
+          categories: {}, // Track which categories they competed in
         };
       }
       const c = compMap[compKey];
+      
+      // Track all categories this competitor competed in
+      if (comp.category) {
+        c.categories[comp.category] = true;
+      }
+      
+      // Update to most recent category (in case it changed)
+      if (comp.category) {
+        c.category = comp.category;
+      }
       
       // Get max points_in_division for this competitor's division in this match
       const divStages = matchData.competitors.filter(mc => mc.division === comp.division && !mc.is_disq);
@@ -932,8 +943,12 @@ function initRankingResults(rankingData) {
         matchId: matchData.match.id,
         pct_in_div: comp.is_disq ? 0 : pctInDiv,
         multiplied_pct: comp.is_disq ? 0 : multipliedPct, // With multiplier applied
-        points: comp.total_points || 0,
+        points: comp.total_points_in_division || 0,
+        pointsOverall: comp.total_points || 0,
         is_disq: comp.is_disq,
+        matchMultiplier: matchMultiplier,
+        matchIdx: matchIdx,
+        category: comp.category, // Store category per match result
       });
     });
   });
@@ -1024,16 +1039,71 @@ function renderRankingTable() {
   const selectedCat = document.getElementById('f-cat').value;
   
   // Filter by division and category
+  // IMPORTANT: If category selected, only include competitors who competed in that category
   let filtered = G.data;
   if (selectedDiv) {
     filtered = filtered.filter(c => c.division === selectedDiv);
   }
   if (selectedCat) {
-    filtered = filtered.filter(c => c.category === selectedCat);
+    filtered = filtered.filter(c => c.categories && c.categories[selectedCat]);
   }
   
   // Sort by rank (already sorted, but filter may change order)
   filtered = filtered.filter(c => !c.is_disq).sort((a,b) => a.rank - b.rank);
+
+  // If category is selected, recalculate percentages based only on that category
+  if (selectedCat) {
+    filtered = filtered.map(c => {
+      const compCopy = JSON.parse(JSON.stringify(c));
+      
+      // Filter match results to only include those from selected category
+      const categoryMatchResults = compCopy.matchResults.filter(mr => mr.category === selectedCat);
+      
+      // Recalculate match results for this category
+      compCopy.matchResults = categoryMatchResults.map(result => {
+        // Find max points for this match among competitors in the selected category (and division if selected)
+        let matchCompetitors = G.data
+          .filter(comp => comp.categories && comp.categories[selectedCat] && !comp.is_disq);
+        
+        // Also filter by division if selected
+        if (selectedDiv) {
+          matchCompetitors = matchCompetitors.filter(comp => comp.division === selectedDiv);
+        }
+        
+        matchCompetitors = matchCompetitors
+          .map(comp => comp.matchResults.find(mr => mr.matchId === result.matchId && mr.category === selectedCat))
+          .filter(mr => mr && !mr.is_disq);
+        
+        const maxPointsInCategory = Math.max(...matchCompetitors.map(mr => mr.points), 0);
+        
+        // Recalculate percentage based on category max
+        const newPctInDiv = maxPointsInCategory > 0 && result.points > 0 
+          ? (result.points / maxPointsInCategory * 100) 
+          : 0;
+        const newMultipliedPct = newPctInDiv * result.matchMultiplier;
+        
+        return {
+          ...result,
+          pct_in_div: newPctInDiv,
+          multiplied_pct: newMultipliedPct,
+        };
+      });
+      
+      // Recalculate total percentage (using only category match results)
+      const topMatchesCount = G.rankingInfo.topMatchesCount;
+      const validResults = compCopy.matchResults.filter(r => !r.is_disq);
+      const topResults = validResults
+        .sort((a, b) => b.multiplied_pct - a.multiplied_pct)
+        .slice(0, topMatchesCount > 0 ? topMatchesCount : validResults.length);
+      compCopy.total_pct = topResults.reduce((sum, r) => sum + r.multiplied_pct, 0);
+      
+      return compCopy;
+    });
+    
+    // Re-rank based on new totals
+    filtered = filtered.sort((a, b) => b.total_pct - a.total_pct);
+    filtered.forEach((c, i) => { c.rank = i + 1; });
+  }
 
   // Update count
   document.getElementById('f-count').textContent = `${filtered.length} ${getTrans('results.competitors')}`;
@@ -1213,12 +1283,40 @@ function sortArrow(col) {
 ═══════════════════════════════════════════════════════════════════════════ */
 
 function renderOverall(list) {
-  // Czy aktywny jest filtr dywizji?
+  // Czy aktywne są filtry?
   const divFilter = document.getElementById('f-div').value;
+  const catFilter = document.getElementById('f-cat').value;
 
   // Gdy filtr dywizji aktywny → punkty per-division; bez filtra → globalne
-  const ptsField = divFilter ? 'total_points_in_division' : 'total_points_overall';
-  const getPoints = c => c[ptsField] ?? c.total_points;
+  let ptsField = divFilter ? 'total_points_in_division' : 'total_points_overall';
+  let getPoints = c => c[ptsField] ?? c.total_points;
+
+  // Jeśli filtr kategorii aktywny, oblicz percentages na bazie kategorii
+  if (catFilter) {
+    list = list.map(c => {
+      if (c.category !== catFilter) return c;
+      const compCopy = JSON.parse(JSON.stringify(c));
+      
+      // Oblicz max w kategorii (w podziale jeśli jest)
+      let categoryComps = G.data.competitors
+        .filter(comp => comp.category === catFilter && comp.division === c.division && !comp.is_disq);
+      
+      if (!divFilter) {
+        categoryComps = G.data.competitors.filter(comp => comp.category === catFilter && !comp.is_disq);
+      }
+      
+      const categoryMaxPts = categoryComps.reduce((mx, comp) => Math.max(mx, getPoints(comp)), 0);
+      
+      if (categoryMaxPts > 0) {
+        const basePts = getPoints(c);
+        const categoryPct = (basePts / categoryMaxPts * 100).toFixed(1);
+        // Przechowaj recalculowaną wartość
+        compCopy._categoryPct = categoryPct;
+      }
+      
+      return compCopy;
+    });
+  }
 
   // Miejsce w dywizji — buduj PRZED sorted() żeby można sortować wg div_rank
   const divRankMap = {};
@@ -1235,7 +1333,15 @@ function renderOverall(list) {
   }
 
   // Najlepsze punkty w aktualnie filtrowanej liście (do obliczenia % lidera)
-  const bestPts = data.filter(c => !c.is_disq).reduce((mx, c) => Math.max(mx, getPoints(c)), 0);
+  let bestPts = data.filter(c => !c.is_disq).reduce((mx, c) => Math.max(mx, getPoints(c)), 0);
+  
+  // Jeśli filtr kategorii, używaj recalculowanego max
+  if (catFilter) {
+    const categoryComps = data.filter(c => c.category === catFilter && !c.is_disq);
+    bestPts = categoryComps.reduce((mx, c) => {
+      return Math.max(mx, c._categoryPct ? parseFloat(c._categoryPct) : getPoints(c));
+    }, 0);
+  }
 
   // Head with translated labels
   const headLabels = [
@@ -1256,7 +1362,15 @@ function renderOverall(list) {
     const cPts = getPoints(c);
     const rc  = c.is_disq ? 'tr-dsq' : index === 0 ? 'tr-1' : index === 1 ? 'tr-2' : index === 2 ? 'tr-3' : '';
     const rnk = c.is_disq ? `<span class="badge bg-danger">${getTrans('results.dsq')}</span>` : rankEmoji(index + 1);
-    const localPct = bestPts > 0 ? cPts / bestPts * 100 : 0;
+    
+    // Oblicz procent - jeśli kategoria filtrowana, używaj recalkulowanego procentu
+    let localPct = 0;
+    if (catFilter && c._categoryPct !== undefined) {
+      localPct = parseFloat(c._categoryPct);
+    } else if (bestPts > 0) {
+      localPct = cPts / bestPts * 100;
+    }
+    
     const pct = c.is_disq ? '-' : `<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${localPct}%"></div></div><span>${localPct.toFixed(1)}%</span></div>`;
     const hf  = c.is_disq ? '-' : `<span class="hf">${c.overall_hf.toFixed(4)}</span>`;
     const fem = c.female   ? ' <i class="bi bi-gender-female text-danger" title="Kobieta"></i>' : '';
@@ -1324,6 +1438,8 @@ function toggleDetail(row, compId) {
    DIVISIONS TAB
 ═══════════════════════════════════════════════════════════════════════════ */
 function renderDivisions(list) {
+  const catFilter = document.getElementById('f-cat').value;
+  
   const byDiv = {};
   list.forEach(c => { (byDiv[c.division] = byDiv[c.division]||[]).push(c); });
 
@@ -1331,8 +1447,19 @@ function renderDivisions(list) {
   for (const div of Object.keys(byDiv).sort()) {
     const comps  = byDiv[div];
     const active = comps.filter(c => !c.is_disq).sort((a,b) => (b.total_points_in_division || b.total_points) - (a.total_points_in_division || a.total_points));
+    
+    // Jeśli filtr kategorii, oblicz bestPts dla całej kategorii, a nie tylko dywizji
+    let bestPts = 0;
+    if (catFilter) {
+      const categoryComps = list.filter(c => c.category === catFilter && c.division === div && !c.is_disq);
+      bestPts = categoryComps.length > 0 
+        ? Math.max(...categoryComps.map(c => c.total_points_in_division || c.total_points))
+        : 0;
+    } else {
+      bestPts = active[0]?.total_points_in_division || active[0]?.total_points || 0;
+    }
+    
     const disq   = comps.filter(c => c.is_disq);
-    const bestPts = active[0]?.total_points_in_division || active[0]?.total_points || 0;
 
     html += `<div class="mb-4">
       <div class="d-flex align-items-center gap-2 px-1 py-2 border-bottom">
@@ -1389,6 +1516,7 @@ function renderStage(idx, filtered) {
   if (!G.data) return;
   const stage  = G.data.stages[idx];
   const list   = filtered || getFiltered();
+  const catFilter = document.getElementById('f-cat').value;
 
   const pairs = list
     .map(c => ({ c, sc: c.stage_scores[idx] }))
@@ -1405,7 +1533,16 @@ function renderStage(idx, filtered) {
 
   let rows = active.map((x, i) => {
     const { c, sc } = x;
-    const divBestHF = getStageMaxHF(idx, c.division);
+    
+    // Jeśli kategoria filtrowana, oblicz max HF dla tej kategorii+dywizji
+    let divBestHF = 0;
+    if (catFilter) {
+      const categoryCompsInDiv = pairs.filter(p => p.c.category === catFilter && p.c.division === c.division && !p.sc.disq);
+      divBestHF = Math.max(...categoryCompsInDiv.map(p => p.sc.hf), 0);
+    } else {
+      divBestHF = getStageMaxHF(idx, c.division);
+    }
+    
     const pct = divBestHF > 0 ? (sc.hf / divBestHF * 100).toFixed(2) : '–';
     const rc  = i===0?'tr-1':i===1?'tr-2':i===2?'tr-3':'';
     return `<tr class="${rc}">
