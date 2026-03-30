@@ -87,6 +87,7 @@
     .match-header h2 { font-size: 1.4rem; margin: 0 0 4px; }
     .match-meta       { font-size: .82rem; opacity: .75; }
     .match-meta span  { margin-right: 18px; }
+    .match-header > div:last-child { margin-right: 60px; }
 
     /* ── Cards ──────────────────────────────────────────── */
     .podium-card { border-top: 4px solid #dee2e6; }
@@ -538,6 +539,12 @@ function changeLanguage(lang) {
   
   // Close dropdown
   document.getElementById('lang-dropdown').classList.add('d-none');
+  
+  // Reload page to apply language changes completely
+  // Small delay to allow cookie to be saved and translations to load
+  setTimeout(() => {
+    location.reload();
+  }, 200);
 }
 
 // Initialize on page load
