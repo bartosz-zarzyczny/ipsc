@@ -95,6 +95,28 @@ def init_db() -> None:
                 FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
             )
         """)
+
+        # Tabela mapowania dywizji (mapowanie między dywizjami z importu a standardowymi)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS standard_divisions (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        
+        # Tabela mapowania dywizji (mapowanie między dywizjami z importu a standardowymi)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS division_mappings (
+                source_division TEXT PRIMARY KEY,
+                mapped_division_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (mapped_division_id) REFERENCES standard_divisions(id)
+            )
+        """)
         
         # Migrate: dodaj kolumnę top_matches_count jeśli nie istnieje
         try:
@@ -581,4 +603,250 @@ def delete_competitor_from_match(match_id: int, comp_id: str) -> bool:
         print(f"Błąd usuwania zawodnika: {e}")
         conn.close()
         return False
+
+
+# ---------------------------------------------------------------------------
+# Division Mappings
+# ---------------------------------------------------------------------------
+
+def get_division_mapping(source_division: str) -> int | None:
+    """Get the mapped standard division ID for a source division. Returns division ID or None."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT mapped_division_id FROM division_mappings WHERE source_division = ?",
+        (source_division,)
+    ).fetchone()
+    conn.close()
+    return int(row["mapped_division_id"]) if row else None
+
+
+def set_division_mapping(source_division: str, mapped_division_id: int | None) -> bool:
+    """Set or update a division mapping. If mapped_division_id is None, removes the mapping."""
+    conn = get_db()
+    try:
+        if mapped_division_id is None:
+            # Usuń mapowanie
+            conn.execute(
+                "DELETE FROM division_mappings WHERE source_division = ?",
+                (source_division,)
+            )
+        else:
+            # Dodaj lub zaktualizuj mapowanie
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO division_mappings (source_division, mapped_division_id, updated_at)
+                VALUES (?, ?, datetime('now'))
+                """,
+                (source_division, mapped_division_id)
+            )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Błąd mapowania dywizji: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_all_division_mappings() -> dict[str, int]:
+    """Get all division mappings as a dictionary {source_division: mapped_division_id}."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT source_division, mapped_division_id FROM division_mappings"
+    ).fetchall()
+    conn.close()
+    return {row["source_division"]: int(row["mapped_division_id"]) for row in rows}
+
+
+def get_imported_divisions() -> list[str]:
+    """Get all source divisions that have been imported from matches. Returns sorted list."""
+    conn = get_db()
+    try:
+        # Zbierz wszystkie unikalne dywizje ze wszystkich zawodów
+        rows = conn.execute(
+            """
+            SELECT DISTINCT json_extract(value, '$.division') as division
+            FROM matches, json_each(matches.data_json, '$.competitors')
+            WHERE json_extract(value, '$.division') IS NOT NULL
+            ORDER BY division COLLATE NOCASE
+            """
+        ).fetchall()
+        
+        divisions = [row["division"] for row in rows if row["division"]]
+        return sorted(list(set(divisions)))
+    except Exception as e:
+        print(f"Błąd pobierania dywizji: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Standard Divisions Management
+# ---------------------------------------------------------------------------
+
+def get_standard_divisions() -> list[dict]:
+    """Get all standard divisions."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, name, description FROM standard_divisions ORDER BY id"
+    ).fetchall()
+    conn.close()
+    return [{"id": row["id"], "name": row["name"], "description": row["description"]} for row in rows]
+
+
+def get_standard_division(division_id: int) -> dict | None:
+    """Get a specific standard division by ID."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id, name, description FROM standard_divisions WHERE id = ?",
+        (division_id,)
+    ).fetchone()
+    conn.close()
+    if row:
+        return {"id": row["id"], "name": row["name"], "description": row["description"]}
+    return None
+
+
+def add_standard_division(division_id: int, name: str, description: str = "") -> bool:
+    """Add a new standard division."""
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO standard_divisions (id, name, description)
+            VALUES (?, ?, ?)
+            """,
+            (division_id, name, description)
+        )
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False  # Already exists or name is not unique
+    except Exception as e:
+        print(f"Błąd dodawania dywizji: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def update_standard_division(division_id: int, name: str, description: str = "") -> bool:
+    """Update an existing standard division."""
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            UPDATE standard_divisions
+            SET name = ?, description = ?, updated_at = datetime('now')
+            WHERE id = ?
+            """,
+            (name, description, division_id)
+        )
+        conn.commit()
+        return conn.total_changes > 0
+    except Exception as e:
+        print(f"Błąd aktualizacji dywizji: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def delete_standard_division(division_id: int) -> bool:
+    """Delete a standard division (if no mappings reference it)."""
+    conn = get_db()
+    try:
+        # Sprawdź czy jest mapowanie
+        mapping = conn.execute(
+            "SELECT COUNT(*) as count FROM division_mappings WHERE mapped_division_id = ?",
+            (division_id,)
+        ).fetchone()
+        
+        if mapping["count"] > 0:
+            # Nie możesz usunąć jeśli jest do niej mapowanie
+            return False
+        
+        conn.execute("DELETE FROM standard_divisions WHERE id = ?", (division_id,))
+        conn.commit()
+        return conn.total_changes > 0
+    except Exception as e:
+        print(f"Błąd usuwania dywizji: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def init_standard_divisions_from_json(divisions_list: list[dict]) -> bool:
+    """Initialize/update standard_divisions table from a list of divisions (from JSON)."""
+    conn = get_db()
+    try:
+        # Dodaj lub zaktualizuj każdą dywizję
+        for div in divisions_list:
+            div_id = div.get("id")
+            div_name = div.get("name")
+            div_description = div.get("description", "")
+            
+            if not div_id or not div_name:
+                continue
+            
+            # Sprawdź czy istnieje
+            exists = conn.execute(
+                "SELECT id FROM standard_divisions WHERE id = ?",
+                (div_id,)
+            ).fetchone()
+            
+            if exists:
+                # Zaktualizuj
+                conn.execute(
+                    """
+                    UPDATE standard_divisions
+                    SET name = ?, description = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (div_name, div_description, div_id)
+                )
+            else:
+                # Dodaj nową
+                conn.execute(
+                    """
+                    INSERT INTO standard_divisions (id, name, description)
+                    VALUES (?, ?, ?)
+                    """,
+                    (div_id, div_name, div_description)
+                )
+        
+        conn.commit()
+        count = len(divisions_list)
+        print(f"✓ Załadowano/Zaktualizowano {count} standardowych dywizji w bazie")
+        return True
+    except Exception as e:
+        print(f"Błąd inicjalizacji dywizji: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def apply_division_mappings(match_data: dict) -> dict:
+    """Apply division mappings to competitors in match data. Returns modified data."""
+    try:
+        data = json.loads(json.dumps(match_data))  # Deep copy
+        mappings = get_all_division_mappings()
+        
+        if not mappings:
+            return data  # Brak mapowań
+        
+        # Aplikuj mapowania do każdego zawodnika
+        for competitor in data.get("competitors", []):
+            original_division = competitor.get("division")
+            if original_division and original_division in mappings:
+                mapped_division_id = mappings[original_division]
+                # Pobierz nazwę zmapowanej dywizji
+                mapped_div = get_standard_division(mapped_division_id)
+                if mapped_div:
+                    competitor["division"] = mapped_div["name"]
+                    competitor["_original_division"] = original_division  # Zapisz oryginał dla referencji
+        
+        return data
+    except Exception as e:
+        print(f"Błąd stosowania mapowań dywizji: {e}")
+        return match_data
 
