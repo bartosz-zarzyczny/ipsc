@@ -626,7 +626,7 @@ def admin_get_competitors(match_id):
 @app.route("/admin/api/competitors/<int:match_id>", methods=["POST"])
 @admin_required
 def admin_update_competitor(match_id):
-    """Update competitor's first name and last name."""
+    """Update competitor's first name, last name, and optionally category."""
     data = request.get_json()
     
     if not data:
@@ -635,11 +635,12 @@ def admin_update_competitor(match_id):
     comp_id = data.get("comp_id")
     firstname = data.get("firstname", "").strip()
     lastname = data.get("lastname", "").strip()
+    category = data.get("category", "").strip() or None
     
     if not comp_id or not firstname or not lastname:
         return jsonify({"error": "Brak wymaganych pól: comp_id, firstname, lastname"}), 400
     
-    if update_competitor_name(match_id, comp_id, firstname, lastname):
+    if update_competitor_name(match_id, comp_id, firstname, lastname, category):
         return jsonify({"ok": True, "message": "Zawodnik zaktualizowany"})
     else:
         return jsonify({"error": "Nie znaleziono zawodnika"}), 404

@@ -317,6 +317,7 @@
                     <th>Imię</th>
                     <th>Nazwisko</th>
                     <th>Dywizja</th>
+                    <th>Kategoria</th>
                     <th class="text-end">Akcje</th>
                   </tr>
                 </thead>
@@ -477,6 +478,16 @@
   });
   
   function competitorsToTableRows(matchId, competitors) {
+    // Kategorie domyślne dostępne zawsze
+    const defaultCategories = ['Senior', 'Super Senior', 'Grand Senior', 'Junior', 'Lady', 'Senior Lady'];
+    
+    // Zbierz wszystkie dostępne kategorie z zawodników
+    const categoriesSet = new Set(defaultCategories);
+    competitors.forEach(c => {
+      if (c.category) categoriesSet.add(c.category);
+    });
+    const categories = Array.from(categoriesSet).sort();
+    
     return competitors.map((c, idx) => `
       <tr>
         <td>${idx + 1}</td>
@@ -492,6 +503,13 @@
                  placeholder="Nazwisko">
         </td>
         <td>${c.division}</td>
+        <td>
+          <select class="form-control form-control-sm competitor-category" 
+                  data-comp-id="${c.comp_id}" data-match-id="${matchId}">
+            <option value=""></option>
+            ${categories.map(cat => `<option value="${cat}" ${c.category === cat ? 'selected' : ''}>${cat}</option>`).join('')}
+          </select>
+        </td>
         <td class="text-end">
           <button type="button" class="btn btn-sm btn-success" 
                   onclick="saveCompetitor('${matchId}', '${c.comp_id}')">
@@ -509,6 +527,7 @@
   async function saveCompetitor(matchId, compId) {
     const firstNameInput = document.querySelector(`input.competitor-firstName[data-comp-id="${compId}"]`);
     const lastNameInput = document.querySelector(`input.competitor-lastName[data-comp-id="${compId}"]`);
+    const categorySelect = document.querySelector(`select.competitor-category[data-comp-id="${compId}"]`);
     
     if (!firstNameInput || !lastNameInput) {
       alert('Nie znaleziono pol do edycji');
@@ -517,6 +536,7 @@
     
     const firstname = firstNameInput.value.trim();
     const lastname = lastNameInput.value.trim();
+    const category = categorySelect ? categorySelect.value : '';
     
     if (!firstname || !lastname) {
       alert('Imię i nazwisko nie mogą być puste');
@@ -533,6 +553,7 @@
           comp_id: compId,
           firstname: firstname,
           lastname: lastname,
+          category: category,
         }),
       });
       

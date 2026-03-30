@@ -497,8 +497,8 @@ def change_password(user_id: int, password_hash: str) -> bool:
 # Competitor management
 # ---------------------------------------------------------------------------
 
-def update_competitor_name(match_id: int, comp_id: str, firstname: str, lastname: str) -> bool:
-    """Update competitor's first and last name in a match. Returns True if successful."""
+def update_competitor_name(match_id: int, comp_id: str, firstname: str, lastname: str, category: str = None) -> bool:
+    """Update competitor's first name, last name, and optionally category in a match. Returns True if successful."""
     conn = get_db()
     try:
         # Pobierz dane meczu
@@ -520,6 +520,9 @@ def update_competitor_name(match_id: int, comp_id: str, firstname: str, lastname
                 competitor["lastname"] = lastname.strip()
                 # Zaktualizuj połączone imię i nazwisko
                 competitor["name"] = f"{competitor['lastname']} {competitor['firstname']}"
+                # Zaktualizuj kategorię jeśli podana
+                if category is not None:
+                    competitor["category"] = category.strip()
                 found = True
                 break
         
