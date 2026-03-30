@@ -1541,7 +1541,7 @@ function generateRankingPDFContent() {
     <div style="font-family: Arial, sans-serif; padding: 12px; color: #333;">
       <h1 style="text-align: center; margin: 0 0 6px 0; color: #1a5276; font-size: 20px;">${esc(G.rankingInfo.name)}</h1>
       <p style="text-align: center; color: #666; margin: 0 0 16px 0; font-size: 12px;">
-        Data: ${G.rankingInfo.date} | Zawodów: ${G.rankingInfo.matchCount}
+        ${getTrans('meta.date')}: ${G.rankingInfo.date} | ${getTrans('meta.matches')}: ${G.rankingInfo.matchCount}
       </p>
   `;
 
@@ -1564,9 +1564,9 @@ function generateRankingPDFContent() {
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; page-break-inside: avoid;">
           <thead>
             <tr style="background-color: #f0f0f0; border-bottom: 2px solid #999;">
-              <th style="padding: 5px 4px; text-align: center; border: 1px solid #ddd; font-size: 11px;">#</th>
-              <th style="padding: 5px 4px; text-align: left; border: 1px solid #ddd; font-size: 11px;">Zawodnik</th>
-              <th style="padding: 5px 4px; text-align: center; border: 1px solid #ddd; font-size: 10px;">Kat.</th>
+              <th style="padding: 5px 4px; text-align: center; border: 1px solid #ddd; font-size: 11px;">${getTrans('table.place')}</th>
+              <th style="padding: 5px 4px; text-align: left; border: 1px solid #ddd; font-size: 11px;">${getTrans('table.competitor')}</th>
+              <th style="padding: 5px 4px; text-align: center; border: 1px solid #ddd; font-size: 10px;">${getTrans('table.category')}</th>
     `;
 
     // Add match column headers
@@ -1578,7 +1578,7 @@ function generateRankingPDFContent() {
 
     html += `
               <th style="padding: 5px 4px; text-align: center; border: 1px solid #ddd; font-weight: bold; background-color: #e8f0f8; font-size: 11px;">
-                Razem
+                ${getTrans('results.total')}
               </th>
             </tr>
           </thead>
@@ -1619,12 +1619,12 @@ function generateRankingPDFContent() {
     // Add disqualified competitors
     disqCompetitors.forEach(c => {
       html += `<tr style="background-color: #ffe8e8; color: #c0392b; border-bottom: 1px solid #ddd; page-break-inside: avoid;">
-        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-weight: bold; font-size: 11px;">DSQ</td>
+        <td style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-weight: bold; font-size: 11px;">${getTrans('results.dsq')}</td>
         <td style="padding: 4px 2px; text-align: left; border: 1px solid #ddd; font-size: 11px;">
           ${esc(c.name)}${c.female ? ' ♀' : ''}
         </td>
         <td colspan="${G.rankingMatches.length + 2}" style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-style: italic; font-size: 10px;">
-          Dyskwalifikowany
+          ${getTrans('results.disqualified')}
         </td>
       </tr>`;
     });
@@ -1654,7 +1654,7 @@ function generateMatchPDFContent() {
     <div style="font-family: Arial, sans-serif; padding: 12px; color: #333;">
       <h1 style="text-align: center; margin: 0 0 6px 0; color: #1a5276; font-size: 20px;">${esc(match.name)}</h1>
       <p style="text-align: center; color: #666; margin: 0 0 16px 0; font-size: 12px;">
-        Data: ${match.date} | Poziom: L${match.level} | Torów: ${stages.length} | Zawodników: ${competitors.length}
+        ${getTrans('meta.date')}: ${match.date} | ${getTrans('meta.level')}: L${match.level} | ${getTrans('meta.stages')}: ${stages.length} | ${getTrans('meta.competitors')}: ${competitors.length}
       </p>
   `;
 
@@ -1683,12 +1683,12 @@ function generateMatchPDFContent() {
             <tr style="background-color: #f0f0f0; border-bottom: 2px solid #999;">
               <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">Dyw.</th>
               <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">Og.</th>
-              <th style="padding: 4px 2px; text-align: left; border: 1px solid #ddd; font-size: 11px;">Zawodnik</th>
-              <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">Kat.</th>
-              <th style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">Pkt</th>
-              <th style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">Czas</th>
-              <th style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">HF</th>
-              <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">% dyw.</th>
+              <th style="padding: 4px 2px; text-align: left; border: 1px solid #ddd; font-size: 11px;">${getTrans('table.competitor')}</th>
+              <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">${getTrans('table.category')}</th>
+              <th style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">${getTrans('table.points')}</th>
+              <th style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">${getTrans('table.time')}</th>
+              <th style="padding: 4px 2px; text-align: right; border: 1px solid #ddd; font-size: 10px;">${getTrans('table.hf')}</th>
+              <th style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-size: 10px;">${getTrans('table.percentageDivision')}</th>
             </tr>
           </thead>
           <tbody>
@@ -1728,10 +1728,10 @@ function generateMatchPDFContent() {
     disqInDiv.forEach(c => {
       html += `<tr style="background-color: #ffe8e8; color: #c0392b; border-bottom: 1px solid #ddd; page-break-inside: avoid;">
         <td colspan="3" style="padding: 4px 2px; text-align: left; border: 1px solid #ddd; font-weight: bold; font-size: 11px;">
-          DSQ - ${esc(c.name)}${c.female ? ' ♀' : ''}
+          ${getTrans('results.dsq')} - ${esc(c.name)}${c.female ? ' ♀' : ''}
         </td>
         <td colspan="5" style="padding: 4px 2px; text-align: center; border: 1px solid #ddd; font-style: italic; font-size: 10px;">
-          Dyskwalifikowany
+          ${getTrans('results.disqualified')}
         </td>
       </tr>`;
     });
