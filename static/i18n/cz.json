@@ -32,7 +32,8 @@
     "back": "Zpět",
     "download": "Stáhnout",
     "pdf": "PDF",
-    "csv": "CSV"
+    "csv": "CSV",
+    "copyUrl": "Kopírovat URL"
   },
   "meta": {
     "date": "Datum",
