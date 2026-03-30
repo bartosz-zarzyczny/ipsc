@@ -70,6 +70,16 @@
         <i class="bi bi-people-fill"></i> Użytkownicy
       </button>
     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="divisions-tab" data-bs-toggle="tab" data-bs-target="#divisions" type="button" role="tab" aria-controls="divisions" aria-selected="false">
+        <i class="bi bi-collection"></i> Mapowanie Dywizji
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="standard-divisions-tab" data-bs-toggle="tab" data-bs-target="#standard-divisions" type="button" role="tab" aria-controls="standard-divisions" aria-selected="false">
+        <i class="bi bi-gear"></i> Edytowanie Dywizji
+      </button>
+    </li>
   </ul>
 
   <div class="tab-content">
@@ -415,6 +425,87 @@
       </div>
     </div>
 
+    <div class="tab-pane fade" id="divisions" role="tabpanel" aria-labelledby="divisions-tab">
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-collection"></i> Mapowanie Dywizji</h6>
+          <p class="text-muted small mb-3">
+            Wybierz zawody, aby zobaczyć i zmapować dywizje na standardowe kategorie.
+          </p>
+          
+          <label class="form-label small fw-semibold">Zawody do mapowania</label>
+          <select id="divisionsMatchSelect" class="form-control mb-3">
+            <option value="">— wybierz zawody —</option>
+            {% for m in matches %}
+            <option value="{{ m.id }}">{{ m.name }} ({{ m.date or 'brak daty' }})</option>
+            {% endfor %}
+          </select>
+
+          <div id="divisionsContainer" style="display:none;">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                  <tr>
+                    <th>Dywizja z zawodów</th>
+                    <th>Mapuj na standardową dywizję</th>
+                    <th class="text-end">Akcje</th>
+                  </tr>
+                </thead>
+                <tbody id="divisionsMappingList">
+                  <!-- Mapowania będą wstawione tutaj przez JavaScript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="noDivisionsMessage" style="display:none;">
+            <p class="text-muted">Brak zawodów lub dywizji do wyświetlenia.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zakładka: Edytowanie Dywizji Standard -->
+    <div class="tab-pane fade" id="standard-divisions" role="tabpanel" aria-labelledby="standard-divisions-tab">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-gear"></i> Edytowanie Standardowych Dywizji</h6>
+          
+          <!-- Formularz dodawania nowej dywizji -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="input-group input-group-sm">
+                <input type="number" id="newDivisionId" class="form-control" placeholder="ID" min="1" max="999">
+                <input type="text" id="newDivisionName" class="form-control" placeholder="Nazwa dywizji">
+                <button class="btn btn-success" type="button" onclick="addNewDivision()">
+                  <i class="bi bi-plus-lg"></i> Dodaj
+                </button>
+              </div>
+              <small class="text-muted d-block mt-1">Wpisz ID i nazwę nowej dywizji</small>
+            </div>
+          </div>
+
+          <!-- Tablica z dywizjami -->
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Nazwa</th>
+                  <th>Opis</th>
+                  <th class="text-end" style="width: 150px;">Akcje</th>
+                </tr>
+              </thead>
+              <tbody id="standardDivisionsTable">
+                <!-- Dywizje będą wstawione tutaj przez JavaScript -->
+              </tbody>
+            </table>
+          </div>
+          <small class="text-muted d-block mt-2" id="divisionsLoadingMsg">Ładowanie dywizji...</small>
+        </div>
+      </div>
+    </div>
+
   </div>
 
 </div>
@@ -430,6 +521,13 @@
     if (btn) {
       btn.click();
     }
+  });
+  
+  // Inicjalizuj DOM elements dla divisions zaraz po załadowaniu strony
+  window.addEventListener('load', function() {
+    setTimeout(() => {
+      initializeDOMElements();
+    }, 100);
   });
   
   // ========================================================================
@@ -601,6 +699,407 @@
       alert('Błąd podczas usuwania');
     }
   }
+  
+  // ========================================================================
+  // Divisions Mapping Tab
+  // ========================================================================
+  
+  let availableDivisions = [];
+  let standardDivisionsMap = {}; // {id: name}
+  let allMatchesData = {}; // {match_id: match_data}
+  
+  // Zmienne będą zainicjalizowane podczas ładowania
+  let divisionsMatchSelect;
+  let divisionsMappingList;
+  let divisionsContainer;
+  let noDivisionsMessage;
+  
+  function initializeDOMElements() {
+    divisionsMatchSelect = document.getElementById('divisionsMatchSelect');
+    divisionsMappingList = document.getElementById('divisionsMappingList');
+    divisionsContainer = document.getElementById('divisionsContainer');
+    noDivisionsMessage = document.getElementById('noDivisionsMessage');
+    
+    if (!divisionsMatchSelect) {
+      console.error('Nie znaleziono elementów divisions');
+      return;
+    }
+    
+    // Dodaj listener do selektora zawodów
+    divisionsMatchSelect.addEventListener('change', () => {
+      handleDivisionsMatchChange();
+    });
+    
+    console.log('✓ Elementy divisions zainicjalizowane');
+  }
+  
+  // Załaduj sve podatke o zavodima pri učitavanju
+  async function initializeDivisionsTab() {
+    try {
+      // Prvo učitaj standardne dywizje i mapirania
+      console.log('🔄 Inicjalizacja zakładki Mapowanie Dywizji...');
+      const response = await fetch('/admin/api/divisions-mapping');
+      if (!response.ok) {
+        console.error('❌ Błąd HTTP wczytywania mapowań dywizji:', response.status);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('📦 Odpowiedź API:', data);
+      console.log('📊 standard_divisions type:', typeof data.standard_divisions, 'length:', Array.isArray(data.standard_divisions) ? data.standard_divisions.length : 'N/A');
+      
+      availableDivisions = data.standard_divisions || [];
+      console.log(`✅ Załadowano dywizje: ${availableDivisions.length} pozycji`);
+      console.log('Dywizje:', availableDivisions);
+      
+      // Kreiraj mapu standardnih dywizja za lakši pristup
+      availableDivisions.forEach(div => {
+        standardDivisionsMap[div.id] = div.name;
+      });
+      
+      // Załaduj sve podatke o zavodima
+      const matchesResponse = await fetch('/api/matches');
+      if (!matchesResponse.ok) {
+        console.error('❌ Błąd wczytywania zawodów');
+        return;
+      }
+      
+      const matchesList = await matchesResponse.json();
+      console.log(`✓ Załadowano ${matchesList.length} zawodów`);
+      
+      // Za svaki zavor, załaduj detaljne podatke
+      for (const match of matchesList) {
+        const matchDataResponse = await fetch(`/api/matches/${match.id}`);
+        if (matchDataResponse.ok) {
+          allMatchesData[match.id] = await matchDataResponse.json();
+        }
+      }
+      
+      console.log('✓ Dane zawodów załadowane');
+    } catch (err) {
+      console.error('❌ Błąd inicjalizacji:', err);
+    }
+  }
+  
+  // Obsługuj zmianę selektora zawodów
+  async function handleDivisionsMatchChange() {
+    const matchId = divisionsMatchSelect.value;
+    
+    if (!matchId) {
+      divisionsContainer.style.display = 'none';
+      noDivisionsMessage.style.display = 'none';
+      divisionsMappingList.innerHTML = '';
+      return;
+    }
+    
+    try {
+      // Upewnij się że dostępne dywizje są załadowane
+      if (availableDivisions.length === 0) {
+        console.log('⚠️  Przeładowuję dostępne dywizje...');
+        const response = await fetch('/admin/api/divisions-mapping');
+        if (!response.ok) {
+          console.error('❌ Błąd HTTP wczytywania mapowań dywizji:', response.status);
+          return;
+        }
+        const data = await response.json();
+        console.log('📦 Odpowiedź API (reload):', data);
+        console.log('📊 standard_divisions length:', Array.isArray(data.standard_divisions) ? data.standard_divisions.length : 'NOT ARRAY');
+        
+        availableDivisions = data.standard_divisions || [];
+        console.log(`✅ Załadowano dywizje po reloadzie: ${availableDivisions.length}`);
+        availableDivisions.forEach(div => {
+          standardDivisionsMap[div.id] = div.name;
+        });
+      }
+      
+      // Pobierz mapowania
+      const mappingsResponse = await fetch('/admin/api/divisions-mapping');
+      const mappingsData = await mappingsResponse.json();
+      const currentMappings = mappingsData.mappings || {};
+      
+      console.log(`Mapowania dla zawodów ${matchId}:`, currentMappings);
+      console.log(`Dostępne dywizje ${availableDivisions.length}:`, availableDivisions);
+      
+      // Zbierz unikalne dywizje z wybranego zawodu
+      const matchData = allMatchesData[matchId];
+      if (!matchData || !matchData.competitors) {
+        console.warn(`Brak danych zawodników dla zawodów ID ${matchId}`);
+        divisionsContainer.style.display = 'none';
+        noDivisionsMessage.style.display = 'block';
+        return;
+      }
+      
+      const divisionsInMatch = new Set();
+      matchData.competitors.forEach(comp => {
+        if (comp.division) {
+          divisionsInMatch.add(comp.division);
+        }
+      });
+      
+      const divisions = Array.from(divisionsInMatch).sort();
+      console.log(`Dywizje w zawodach: ${divisions.join(', ')}`);
+      
+      if (divisions.length === 0) {
+        divisionsContainer.style.display = 'none';
+        noDivisionsMessage.style.display = 'block';
+        return;
+      }
+      
+      noDivisionsMessage.style.display = 'none';
+      divisionsMappingList.innerHTML = divisions.map(div => {
+        const mappedId = currentMappings[div];
+        const mappedName = mappedId ? standardDivisionsMap[mappedId] : '';
+        
+        // Debug: wypisz co się buduje
+        console.log(`🔨 Building row for: ${div}, mappedId: ${mappedId}, mappedName: ${mappedName}`);
+        console.log(`   Available divisions for options: ${availableDivisions.length}`);
+        
+        
+        const optionsHTML = availableDivisions.map(stdDiv => {
+          const selected = mappedId && (mappedId == stdDiv.id || parseInt(mappedId) == stdDiv.id) ? 'selected' : '';
+          return `<option value="${stdDiv.id}" ${selected}>${stdDiv.name}</option>`;
+        }).join('');
+        
+        return `
+          <tr>
+            <td class="fw-semibold">${div}</td>
+            <td>
+              <select class="form-select form-select-sm division-mapping-select" data-source="${div}" onchange="updateDivisionMapping(this)">
+                <option value="">— brak mapowania —</option>
+                ${optionsHTML}
+              </select>
+            </td>
+            <td class="text-end">
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearDivisionMapping('${div}')">
+                <i class="bi bi-x-lg"></i> Wyczyść
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      
+      console.log('✓ Selectorami zbudowane pomyślnie');
+      divisionsContainer.style.display = 'block';
+    } catch (err) {
+      console.error('Błąd przy zmianie zawodów:', err);
+      noDivisionsMessage.style.display = 'block';
+    }
+  };
+  
+  async function updateDivisionMapping(select) {
+    const sourceDiv = select.getAttribute('data-source');
+    const mappedDivisionId = select.value;
+    
+    try {
+      const response = await fetch('/admin/api/divisions-mapping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_division: sourceDiv,
+          mapped_division_id: mappedDivisionId || null
+        })
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        alert(`Błąd: ${data.error || 'Nie udało się zapisać mapowania'}`);
+        return;
+      }
+      
+      // Odśwież widok
+      divisionsMatchSelect.dispatchEvent(new Event('change'));
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Błąd podczas zapisywania mapowania');
+    }
+  }
+  
+  async function clearDivisionMapping(sourceDiv) {
+    if (!confirm(`Wyczyścić mapowanie dla "${sourceDiv}"?`)) return;
+    
+    try {
+      const response = await fetch('/admin/api/divisions-mapping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_division: sourceDiv,
+          mapped_division_id: null
+        })
+      });
+      
+      if (!response.ok) {
+        alert('Błąd podczas czyszczenia mapowania');
+        return;
+      }
+      
+      // Odśwież widok
+      divisionsMatchSelect.dispatchEvent(new Event('change'));
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Błąd podczas czyszczenia mapowania');
+    }
+  }
+  
+  // Udostępnij funkcje globalnie dla onclick handlerów
+  window.updateDivisionMapping = updateDivisionMapping;
+  window.clearDivisionMapping = clearDivisionMapping;
+  
+  // Wczytaj mapowania dywizji gdy zakładka się załaduje
+  document.getElementById('divisions-tab').addEventListener('click', function() {
+    initializeDOMElements();
+    initializeDivisionsTab();
+  });
+  
+  // Edytowanie Standardowych Dywizji
+  async function loadStandardDivisions() {
+    try {
+      const response = await fetch('/admin/api/standard-divisions');
+      if (!response.ok) {
+        console.error('Błąd ładowania dywizji');
+        return;
+      }
+      
+      const data = await response.json();
+      const divisions = data.standard_divisions || [];
+      
+      const table = document.getElementById('standardDivisionsTable');
+      const loadingMsg = document.getElementById('divisionsLoadingMsg');
+      
+      if (divisions.length === 0) {
+        table.innerHTML = '<tr><td colspan="4" class="text-muted text-center">Brak dywizji</td></tr>';
+        loadingMsg.style.display = 'none';
+        return;
+      }
+      
+      table.innerHTML = divisions.map(div => `
+        <tr>
+          <td class="fw-semibold">#${div.id}</td>
+          <td>${div.name}</td>
+          <td><small class="text-muted">${div.description || '—'}</small></td>
+          <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-warning" onclick="editDivision(${div.id}, '${div.name.replace(/'/g, "\\'")}', '${(div.description || '').replace(/'/g, "\\'")}')">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmDeleteDivision(${div.id}, '${div.name.replace(/'/g, "\\'")}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+      
+      loadingMsg.style.display = 'none';
+    } catch (err) {
+      console.error('Błąd:', err);
+    }
+  }
+  
+  async function addNewDivision() {
+    const idInput = document.getElementById('newDivisionId');
+    const nameInput = document.getElementById('newDivisionName');
+    
+    const id = idInput.value.trim();
+    const name = nameInput.value.trim();
+    
+    if (!id || !name) {
+      alert('Wpisz ID i nazwę dywizji');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/admin/api/standard-divisions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: parseInt(id),
+          name: name,
+          description: ''
+        })
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        alert(`Błąd: ${data.error || 'Nie udało się dodać dywizji'}`);
+        return;
+      }
+      
+      idInput.value = '';
+      nameInput.value = '';
+      loadStandardDivisions(); // Odśwież listę
+      alert(`✓ Dywizja "${name}" dodana`);
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Błąd podczas dodawania dywizji');
+    }
+  }
+  
+  function editDivision(id, name, description) {
+    const newName = prompt(`Zmień nazwę dywizji #${id}:`, name);
+    if (newName === null) return;
+    
+    if (!newName.trim()) {
+      alert('Nazwa nie może być pusta');
+      return;
+    }
+    
+    const newDescription = prompt(`Opis dywizji #${id}:`, description || '');
+    
+    saveDivisionUpdate(id, newName.trim(), newDescription || '');
+  }
+  
+  async function saveDivisionUpdate(id, name, description) {
+    try {
+      const response = await fetch(`/admin/api/standard-divisions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name,
+          description: description
+        })
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        alert(`Błąd: ${data.error || 'Nie udało się zaktualizować'}`);
+        return;
+      }
+      
+      loadStandardDivisions(); // Odśwież listę
+      alert('✓ Dywizja zaktualizowana');
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Błąd podczas aktualizacji');
+    }
+  }
+  
+  function confirmDeleteDivision(id, name) {
+    if (!confirm(`Czy na pewno usunąć dywizję "${name}"?`)) return;
+    deleteDivision(id);
+  }
+  
+  async function deleteDivision(id) {
+    try {
+      const response = await fetch(`/admin/api/standard-divisions/${id}`, {
+        method: 'DELETE'
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        alert(`Błąd: ${data.error || 'Nie udało się usunąć'}`);
+        return;
+      }
+      
+      loadStandardDivisions(); // Odśwież listę
+      alert('✓ Dywizja usunięta');
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Błąd podczas usuwania');
+    }
+  }
+  
+  // Załaduj dywizje gdy zakładka się otworzy
+  document.getElementById('standard-divisions-tab').addEventListener('click', function() {
+    loadStandardDivisions();
+  });
   
   // Funkcja do otwarcia modalu edycji zawodów
   window.openEditMatchModal = function(button) {

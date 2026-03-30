@@ -9,6 +9,7 @@ Otwórz:   http://localhost:5000
 from __future__ import annotations
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import tempfile
@@ -43,6 +44,16 @@ from database import (
     update_match_level,
     update_competitor_name,
     delete_competitor_from_match,
+    get_division_mapping,
+    set_division_mapping,
+    get_all_division_mappings,
+    get_imported_divisions,
+    get_standard_divisions,
+    get_standard_division,
+    add_standard_division,
+    update_standard_division,
+    delete_standard_division,
+    apply_division_mappings,
 )
 
 app = Flask(__name__)
@@ -50,6 +61,9 @@ app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 init_db()
+
+# Dane dywizji są teraz w bazie danych (tabela standard_divisions)
+# JSON plik jest już niepotrzebny
 
 
 def admin_required(f):
@@ -288,11 +302,15 @@ def api_list_matches():
 
 @app.route("/api/matches/<int:match_id>")
 def api_get_match(match_id):
-    """Zwraca dane zapisanych zawodów."""
+    """Zwraca dane zapisanych zawodów (z aplikowanymi mapowaniami dywizji)."""
     result = get_match(match_id)
     if result is None:
         return jsonify({"error": "Nie znaleziono zawodów"}), 404
     result["match"]["id"] = match_id
+    
+    # Aplikuj mapowania dywizji
+    result = apply_division_mappings(result)
+    
     return jsonify(result)
 
 
@@ -654,6 +672,123 @@ def admin_delete_competitor(match_id, comp_id):
         return jsonify({"ok": True, "message": "Zawodnik usunięty"})
     else:
         return jsonify({"error": "Nie znaleziono zawodnika"}), 404
+
+
+# ---------------------------------------------------------------------------
+# Division Mappings API
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/api/divisions-mapping", methods=["GET"])
+@admin_required
+def admin_api_get_divisions_mapping():
+    """Get all division mappings and available standard divisions."""
+    # Pobierz dywizje z bazy
+    standard_divs = get_standard_divisions()
+    
+    mappings = get_all_division_mappings()
+    imported_divisions = get_imported_divisions()
+    
+    result = {
+        "standard_divisions": standard_divs,
+        "mappings": mappings,
+        "imported_divisions": imported_divisions,
+    }
+    return jsonify(result)
+
+
+@app.route("/admin/api/divisions-mapping", methods=["POST"])
+@admin_required
+def admin_api_set_divisions_mapping():
+    """Set or update a division mapping."""
+    data = request.get_json() or {}
+    source_division = data.get("source_division", "").strip()
+    mapped_division_id = data.get("mapped_division_id")
+    
+    if not source_division:
+        return jsonify({"error": "source_division jest wymagany"}), 400
+    
+    # Jeśli mapped_division_id jest pusty, usuń mapowanie
+    if mapped_division_id is not None:
+        try:
+            mapped_division_id = int(mapped_division_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "mapped_division_id musi być liczbą"}), 400
+    
+    if set_division_mapping(source_division, mapped_division_id):
+        return jsonify({
+            "ok": True,
+            "message": f"Mapowanie dla '{source_division}' zaktualizowane"
+        })
+    else:
+        return jsonify({"error": "Nie udało się zapisać mapowania"}), 500
+
+
+@app.route("/admin/api/standard-divisions", methods=["GET"])
+@admin_required
+def admin_api_get_standard_divisions():
+    """Get all standard divisions."""
+    divisions = get_standard_divisions()
+    return jsonify({"standard_divisions": divisions})
+
+
+@app.route("/admin/api/standard-divisions", methods=["POST"])
+@admin_required
+def admin_api_add_standard_division():
+    """Add a new standard division."""
+    data = request.get_json() or {}
+    division_id = data.get("id")
+    name = data.get("name", "").strip()
+    description = data.get("description", "").strip()
+    
+    if not division_id or not name:
+        return jsonify({"error": "id i name są wymagane"}), 400
+    
+    try:
+        division_id = int(division_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "id musi być liczbą"}), 400
+    
+    if add_standard_division(division_id, name, description):
+        return jsonify({
+            "ok": True,
+            "message": f"Dywizja '{name}' dodana",
+            "division": {"id": division_id, "name": name, "description": description}
+        })
+    else:
+        return jsonify({"error": "Nie udało się dodać dywizji (ID może już istnieć lub nazwa zajęta)"}), 400
+
+
+@app.route("/admin/api/standard-divisions/<int:division_id>", methods=["PUT"])
+@admin_required
+def admin_api_update_standard_division(division_id):
+    """Update an existing standard division."""
+    data = request.get_json() or {}
+    name = data.get("name", "").strip()
+    description = data.get("description", "").strip()
+    
+    if not name:
+        return jsonify({"error": "name jest wymagany"}), 400
+    
+    if update_standard_division(division_id, name, description):
+        return jsonify({
+            "ok": True,
+            "message": f"Dywizja #{division_id} zaktualizowana"
+        })
+    else:
+        return jsonify({"error": "Nie udało się zaktualizować dywizji"}), 400
+
+
+@app.route("/admin/api/standard-divisions/<int:division_id>", methods=["DELETE"])
+@admin_required
+def admin_api_delete_standard_division(division_id):
+    """Delete a standard division."""
+    if delete_standard_division(division_id):
+        return jsonify({
+            "ok": True,
+            "message": f"Dywizja #{division_id} usunięta"
+        })
+    else:
+        return jsonify({"error": "Nie udało się usunąć dywizji (być może jest używana w mapowaniach)"}), 400
 
 
 # ---------------------------------------------------------------------------
