@@ -169,7 +169,8 @@ Konta użytkowników przechowywane są w bazie danych SQLite (`ipsc.db`) z zabez
 - **Zestawienie ogólne** — sortowalna tabela wszystkich zawodników; kliknięcie wiersza rozwija szczegóły torów (A/B/C/D/M/PE, HF, % w dywizji)
 - **Zakładka Dywizje** — osobne tabele per dywizja z rankingiem i % do lidera dywizji
 - **Zakładka Tory** — ranking na wybranym torze z kolorowanymi kolumnami strzelań; procenty liczone w ramach dywizji
-- **Filtry** — wyszukiwanie po nazwisku, filtr po dywizji, filtr po kategorii (Lady / Senior / Super Senior); filtry działają na wszystkich zakładkach włącznie z torami
+- **Filtry** — wyszukiwanie po nazwisku, filtr po dywizji, filtr po kategorii (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady); filtry działają na wszystkich zakładkach włącznie z torami
+- **Recalkulacja percentages** — gdy kategoria filtrowana, percentages automatycznie przeliczane na 100% dla lidera tej kategorii w danej dywizji
 - **Eksport CSV** — generowany po stronie przeglądarki, otwieralny w Excelu (UTF-8 z BOM)
 - **Link do panelu** — przycisk w górnym rogu odsyła do `/admin`
 
@@ -181,6 +182,13 @@ Dostępny pod `/admin` — wymaga zalogowania.
 - **Wgrywanie pliku** — drag & drop lub klik na formularz; automatyczne wykrywanie `WinMSS.cab` w bieżącym katalogu
 - **Lista zawodów** — tabela wszystkich zapisanych zawodów (ID, nazwa, data, poziom)
 - **Usuwanie zawodów** — przyciski do usunięcia pojedynczych zawodów z bazy
+
+#### Tab: Zawodnicy
+- **Edycja danych zawodnika** — wybór zawodów, następnie edycja dla każdego zawodnika:
+  - Imię i nazwisko
+  - Kategoria (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
+- **Lista zawodników** — tabelariczny przegląd wszystkich zawodników z zawodów
+- **Zapisywanie zmian** — przycisk "Zapisz" dla każdego zawodnika, zmiany natychmiast wpływają na rankingi
 
 #### Tab: Ranking
 - **Dodawanie rankingu** — nazwa rankingu + wybór wielu zawodów, które tworzą grupę rankingową
@@ -202,7 +210,7 @@ Dostępny pod `/admin` — wymaga zalogowania.
 | Nr | Numer startowy |
 | Nazwisko Imię | Dane zawodnika |
 | Dywizja | Open / Standard / Standard Manual / Modified |
-| Kategoria | Lady / Senior / Super Senior / Junior |
+| Kategoria | Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady |
 | Pkt łącznie | Suma punktów ze wszystkich torów |
 | Czas łącznie | Suma czasów |
 | HF Overall | Hit Factor = punkty / czas |
@@ -338,6 +346,9 @@ CREATE TABLE users (
 | `/admin/rankings` | POST | Dodanie rankingu |
 | `/admin/rankings/<id>` | POST | Edycja rankingu |
 | `/admin/rankings/<id>/delete` | POST | Usunięcie pustego rankingu |
+| `/admin/api/competitors/<match_id>` | GET | Lista zawodników z zawodów (JSON) |
+| `/admin/api/competitors/<match_id>` | POST | Edycja imienia, nazwiska, kategorii zawodnika |
+| `/admin/api/competitors/<match_id>/<comp_id>` | DELETE | Usunięcie zawodnika z zawodów |
 | `/admin/users` | GET | Lista użytkowników (API JSON) |
 | `/admin/users` | POST | Tworzenie użytkownika |
 | `/admin/users/<id>` | POST | Usunięcie użytkownika |
@@ -360,6 +371,25 @@ CREATE TABLE users (
 | 13 | Modified |
 
 Mapowanie można zmienić w `winmss_results.py` → słownik `DIVISION_NAMES`.
+
+## Mapowanie kategorii (WinMSS)
+
+| CatId | Kategoria |
+|-------|-----------|
+| 0 | (pusta) |
+| 1 | Lady |
+| 2 | Junior |
+| 3 | Senior |
+| 4 | Super Senior |
+| 5 | Super Junior |
+
+**Dodatkowe kategorie wspierane przez system (bez mapowania z WinMSS):**
+- Grand Senior
+- Senior Lady
+
+Kategorie można edytować lub przypisywać ręcznie w panelu administracyjnym (Tab: Zawodnicy).
+
+Mapowanie można zmienić w `winmss_results.py` → słownik `CATEGORY_NAMES`.
 
 ## Pliki XML w archiwum `.cab`
 

@@ -169,7 +169,8 @@ Les comptes d'utilisateur sont stockés dans la base de données SQLite avec hac
 - **Vue d'ensemble générale** – tableau triable de tous les participants
 - **Onglet Divisions** – tableaux séparés par division avec classement
 - **Onglet Étapes** – classement sur l'étape sélectionnée
-- **Filtres** – recherche par nom, filtre par division, filtre par catégorie
+- **Filtres** – recherche par nom, filtre par division, filtre par catégorie (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
+- **Recalcul des pourcentages** – quand la catégorie est filtrée, les pourcentages sont automatiquement recalculés à 100% pour le leader de cette catégorie
 - **Export CSV** – généré côté client, ouvert dans Excel (UTF-8 avec BOM)
 - **Lien vers le panneau** – bouton dans le coin supérieur menant à `/admin`
 
@@ -181,6 +182,13 @@ Disponible sur `/admin` – nécessite une connexion.
 - **Téléchargement de fichier** – glisser-déposer ou clic sur formulaire ; détection automatique
 - **Liste des compétitions** – tableau de toutes les compétitions enregistrées
 - **Suppression de compétitions** – boutons pour supprimer les compétitions individuelles
+
+#### Onglet: Compétiteurs
+- **Modification des données du compétiteur** – sélectionner une compétition, puis modifier pour chaque compétiteur:
+  - Prénom et nom
+  - Catégorie (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
+- **Liste des compétiteurs** – aperçu tabulaire de tous les compétiteurs
+- **Enregistrement des modifications** – bouton "Enregistrer" pour chaque compétiteur
 
 #### Onglet: Classements
 - **Créer classement** – nom + sélection multiple de compétitions

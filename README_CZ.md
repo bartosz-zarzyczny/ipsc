@@ -169,7 +169,8 @@ Uživatelské účty se ukládají v databázi SQLite s šifrováním SHA-256.
 - **Celkový přehled** – tříditelná tabulka všech účastníků; kliknutí na řádek rozbalí detaily etapy
 - **Karta divize** – samostatné tabulky na divizi s žebříčkem a % k vedoucímu divize
 - **Karta etapy** – žebřík na vybrané etapě s barevnými sloupci střelby
-- **Filtry** – vyhledávání podle jména, filtr podle divize, filtr podle kategorie
+- **Filtry** – vyhledávání podle jména, filtr podle divize, filtr podle kategorie (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
+- **Přepočet procent** – když je kategorie filtrována, procenta se automaticky přepočítají na 100% pro vedoucího této kategorie v dané divizi
 - **Export CSV** – generován na straně klienta, otevřený v Excelu (UTF-8 s BOM)
 - **Odkaz na panel** – tlačítko v horním rohu vede na `/admin`
 
@@ -181,6 +182,13 @@ Dostupný na `/admin` – vyžaduje přihlášení.
 - **Nahrání souboru** – drag & drop nebo klik na formulář; automatická detekce
 - **Seznam soutěží** – tabulka všech uložených soutěží
 - **Smazání soutěží** – tlačítka pro smazání jednotlivých soutěží
+
+#### Karta: Soutěžící
+- **Úprava údajů soutěžícího** – vyberte soutěž, poté upravte pro každého soutěžícího:
+  - Jméno a příjmení
+  - Kategorie (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
+- **Seznam soutěžících** – tabelární přehled všech soutěžících
+- **Uložení změn** – tlačítko "Uložit" pro každého soutěžícího
 
 #### Karta: Žebříčky
 - **Vytvorení žebříčku** – název + vícenásobný výběr soutěží

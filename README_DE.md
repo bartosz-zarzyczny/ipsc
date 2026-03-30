@@ -169,7 +169,8 @@ Benutzerkonten werden in der SQLite-Datenbank mit SHA-256-Hashing gespeichert.
 - **Gesamtübersicht** – Sortierbare Tabelle aller Teilnehmer; Klick auf Zeile erweitert Stationsdetails
 - **Abteilungen-Tab** – Separate Tabellen pro Abteilung mit Ranking und % zum Abteilungsleiter
 - **Stationen-Tab** – Ranking auf ausgewählter Station mit farbigen Schusskolonnen
-- **Filter** – Suche nach Name, Filter nach Abteilung, Filter nach Kategorie
+- **Filter** – Suche nach Name, Filter nach Abteilung, Filter nach Kategorie (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady); Filter funktionieren auf allen Registerkarten einschließlich Bühnen
+- **Neuberechnung von Prozentsätzen** – Wenn Kategorie gefiltert wird, werden Prozentsätze automatisch auf 100% für den Anführer dieser Kategorie in der jeweiligen Abteilung neu berechnet
 - **CSV-Export** – Clientseitig generiert, in Excel öffnbar (UTF-8 mit BOM)
 - **Admin-Link** – Schaltfläche in der oberen Ecke führt zu `/admin`
 
@@ -181,6 +182,13 @@ Verfügbar unter `/admin` – erfordert Anmeldung.
 - **Datei-Upload** – Drag & Drop oder Formularklick; automatische Erkennung
 - **Wettkampfliste** – Tabelle aller gespeicherten Wettkämpfe
 - **Wettkämpfe löschen** – Schaltflächen zum Löschen einzelner Wettkämpfe
+
+#### Tab: Teilnehmer
+- **Teilnehmerdaten bearbeiten** – Wettkampf auswählen und für jeden Teilnehmer bearbeiten:
+  - Vorname und Nachname
+  - Kategorie (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
+- **Teilnehmerliste** – Tabellarischer Überblick aller Teilnehmer
+- **Änderungen speichern** – "Speichern"-Schaltfläche für jeden Teilnehmer
 
 #### Tab: Rankings
 - **Ranking erstellen** – Name + Mehrfachauswahl von Wettkämpfen

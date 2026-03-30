@@ -169,7 +169,8 @@ User accounts are stored in SQLite database with SHA-256 hashing.
 - **Overall Summary** — sortable table of all competitors; clicking row expands stage details (A/B/C/D/M/PE, HF, % in division)
 - **Divisions Tab** — separate tables per division with ranking and % to division leader
 - **Stages Tab** — ranking on selected stage with colored shot columns; percentages calculated within division
-- **Filters** — search by last name, filter by division, filter by category (Lady / Senior / Super Senior); filters work on all tabs including stages
+- **Filters** — search by last name, filter by division, filter by category (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady); filters work on all tabs including stages
+- **Recalculation of percentages** — when category filtered, percentages automatically recalculated to 100% for the leader of that category in the given division
 - **CSV Export** — generated client-side, openable in Excel (UTF-8 with BOM)
 - **Admin Link** — button in top corner links to `/admin`
 
@@ -181,6 +182,13 @@ Available at `/admin` — requires login.
 - **File Upload** — drag & drop or click form; auto-detects `WinMSS.cab` in current directory
 - **Competitions List** — table of all saved competitions (ID, name, date, level)
 - **Delete Competitions** — buttons to delete individual competitions from database
+
+#### Tab: Competitors
+- **Edit competitor data** — select competition, then edit for each competitor:
+  - First name and last name
+  - Category (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
+- **Competitors List** — tabular overview of all competitors from the competition
+- **Save changes** — "Save" button for each competitor, changes immediately affect rankings
 
 #### Tab: Rankings
 - **Create ranking** — ranking name plus multi-select of competitions that form the ranking group
@@ -202,7 +210,7 @@ Available at `/admin` — requires login.
 | No. | Start number |
 | Last Name First Name | Competitor data |
 | Division | Open / Standard / Standard Manual / Modified |
-| Category | Lady / Senior / Super Senior / Junior |
+| Category | Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady |
 | Total Points | Sum of points from all stages |
 | Total Time | Sum of times |
 | HF Overall | Hit Factor = points / time |
@@ -338,6 +346,9 @@ CREATE TABLE users (
 | `/admin/rankings` | POST | Create a ranking |
 | `/admin/rankings/<id>` | POST | Edit a ranking |
 | `/admin/rankings/<id>/delete` | POST | Delete an empty ranking |
+| `/admin/api/competitors/<match_id>` | GET | List competitors from competition (JSON) |
+| `/admin/api/competitors/<match_id>` | POST | Edit competitor's name, last name, category |
+| `/admin/api/competitors/<match_id>/<comp_id>` | DELETE | Delete competitor from competition |
 | `/admin/users` | GET | List users (JSON API) |
 | `/admin/users` | POST | Create user |
 | `/admin/users/<id>` | POST | Delete user |
@@ -360,6 +371,25 @@ CREATE TABLE users (
 | 13 | Modified |
 
 Mapping can be changed in `winmss_results.py` → `DIVISION_NAMES` dictionary.
+
+## Category Mapping (WinMSS)
+
+| CatId | Category |
+|-------|----------|
+| 0 | (empty) |
+| 1 | Lady |
+| 2 | Junior |
+| 3 | Senior |
+| 4 | Super Senior |
+| 5 | Super Junior |
+
+**Additional categories supported by the system (without WinMSS mapping):**
+- Grand Senior
+- Senior Lady
+
+Categories can be edited or assigned manually in the admin panel (Tab: Competitors).
+
+Mapping can be changed in `winmss_results.py` → `CATEGORY_NAMES` dictionary.
 
 ## XML Files in `.cab` Archive
 
