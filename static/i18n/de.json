@@ -32,7 +32,8 @@
     "back": "Zurück",
     "download": "Herunterladen",
     "pdf": "PDF",
-    "csv": "CSV"
+    "csv": "CSV",
+    "copyUrl": "URL kopieren"
   },
   "meta": {
     "date": "Datum",

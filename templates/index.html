@@ -238,6 +238,29 @@
       transform: translateY(-4px);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     }
+
+    /* Copy URL button */
+    .btn-copy-url {
+      position: relative;
+    }
+    .copy-url-tooltip {
+      position: absolute;
+      top: -32px;
+      right: 0;
+      background: #28a745;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 1000;
+    }
+    .btn-copy-url.copied .copy-url-tooltip {
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -358,6 +381,10 @@
       </div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm btn-light btn-copy-url" id="btn-copy-url" onclick="copyCurrentURL(this)" title="Skopiuj link do tego rankingu/zawodu">
+        <i class="bi bi-link-45deg"></i> <span data-i18n="buttons.copyUrl">Kopiuj URL</span>
+        <span class="copy-url-tooltip">Skopiowano!</span>
+      </button>
       <button class="btn btn-sm btn-light" onclick="downloadPDF()"><i class="bi bi-file-pdf"></i> <span data-i18n="buttons.pdf">PDF</span></button>
       <button class="btn btn-sm btn-light" onclick="downloadCSV()"><i class="bi bi-download"></i> <span data-i18n="buttons.csv">CSV</span></button>
       <button class="btn btn-sm btn-outline-light" onclick="resetUI()"><i class="bi bi-arrow-left"></i> <span data-i18n="buttons.back">Wróć</span></button>
@@ -541,6 +568,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Load translations
   await loadTranslations(savedLang);
+  
+  // Check for URL parameters and load if present
+  checkURLParameters();
 });
 
 
@@ -548,11 +578,12 @@ document.addEventListener('DOMContentLoaded', async () => {
    STATE
 ═══════════════════════════════════════════════════════════════════════════ */
 const G = {
-  data:     null,
-  sort:     { col: 'rank', dir: 'asc' },
-  tab:      'overall',
-  stageIdx: 0,
-  mainTab:  'ranking',
+  data:              null,
+  sort:              { col: 'rank', dir: 'asc' },
+  tab:               'overall',
+  stageIdx:          0,
+  mainTab:           'ranking',
+  currentShareData:  null,  // { type: 'match'|'ranking', id: number }
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -645,7 +676,7 @@ function loadMatch(id) {
   show($loading);
   fetch('/api/matches/' + id)
     .then(r => r.json())
-    .then(d => { if (d.error) throw new Error(d.error); initResults(d); })
+    .then(d => { if (d.error) throw new Error(d.error); initResults(d); updateURLState('match', id); })
     .catch(e => { show($upload); uploadErr(e.message); });
 }
 
@@ -685,7 +716,7 @@ function loadRanking(id) {
   show($loading);
   fetch('/api/rankings/' + id)
     .then(r => r.json())
-    .then(d => { if (d.error) throw new Error(d.error); initRankingResults(d); })
+    .then(d => { if (d.error) throw new Error(d.error); initRankingResults(d); updateURLState('ranking', id); })
     .catch(e => { show($upload); uploadErr(e.message); });
 }
 
@@ -704,6 +735,76 @@ function resetUI() {
   // Switch back to the appropriate tab based on current mainTab
   switchMainTab(G.mainTab || 'matches');
   show($upload);
+  // Clear URL state
+  window.history.pushState({}, '', window.location.pathname);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   URL SHARING
+═══════════════════════════════════════════════════════════════════════════ */
+function updateURLState(type, id) {
+  const params = new URLSearchParams();
+  params.set(type, id);
+  window.history.pushState({ type, id }, '', `${window.location.pathname}?${params.toString()}`);
+  G.currentShareData = { type, id };
+}
+
+function copyCurrentURL(btn) {
+  const url = window.location.href;
+  
+  // Try modern Clipboard API first
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      showCopySuccess(btn);
+    }).catch(err => {
+      console.warn('Clipboard API failed:', err);
+      fallbackCopy(url, btn);
+    });
+  } else {
+    // Fallback for older browsers
+    fallbackCopy(url, btn);
+  }
+}
+
+function fallbackCopy(url, btn) {
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = url;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    
+    if (document.execCommand('copy')) {
+      showCopySuccess(btn);
+    } else {
+      throw new Error('execCommand failed');
+    }
+    
+    document.body.removeChild(textarea);
+  } catch (err) {
+    console.error('Fallback copy failed:', err);
+    alert('Nie udało się skopiować linka. Spróbuj ręcznie:\n\n' + url);
+  }
+}
+
+function showCopySuccess(btn) {
+  if (btn) {
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1500);
+  }
+}
+
+function checkURLParameters() {
+  const params = new URLSearchParams(window.location.search);
+  const matchId = params.get('match');
+  const rankingId = params.get('ranking');
+  
+  if (matchId) {
+    loadMatch(parseInt(matchId));
+  } else if (rankingId) {
+    loadRanking(parseInt(rankingId));
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
