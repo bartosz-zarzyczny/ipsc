@@ -215,3 +215,4 @@ wyniki-pp-2025.txt
 data/*
 !data/.gitkeep
 
+.DS_Store
