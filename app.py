@@ -53,6 +53,7 @@ from database import (
     add_standard_division,
     update_standard_division,
     delete_standard_division,
+    init_standard_divisions_from_json,
     apply_division_mappings,
 )
 
@@ -63,7 +64,40 @@ app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 init_db()
 
 # Dane dywizji są teraz w bazie danych (tabela standard_divisions)
-# JSON plik jest już niepotrzebny
+# Zdedykowana funkcja do zapewnienia że są zawsze dostępne
+def _ensure_standard_divisions_exist():
+    """Ensure standard divisions exist in database. If not, create defaults."""
+    existing = get_standard_divisions()
+    if len(existing) > 0:
+        print(f"✓ Dywizje już istniejące: {len(existing)} pozycji")
+        return existing
+    
+    # Domyślne dywizje
+    default_divisions = [
+        {"id": 1, "name": "Modified"},
+        {"id": 2, "name": "Open"},
+        {"id": 3, "name": "Standard"},
+        {"id": 4, "name": "Standard Manual"},
+        {"id": 5, "name": "Classic"},
+        {"id": 6, "name": "Rewolwer"},
+        {"id": 7, "name": "Mini Rifle"},
+        {"id": 8, "name": "Optics"},
+        {"id": 9, "name": "PC Optic"},
+        {"id": 10, "name": "Production"},
+        {"id": 11, "name": "Production Optics"},
+        {"id": 12, "name": "Mini Rifle Open"},
+        {"id": 13, "name": "Mini Rifle Standard"},
+        {"id": 14, "name": "PCC Optics"},
+        {"id": 15, "name": "PCC Standard"},
+        {"id": 16, "name": "Karabin Open"},
+        {"id": 17, "name": "Karabin Standard"},
+    ]
+    
+    print(f"[STARTUP] Baza nowa - wpisuję 17 domyślnych dywizji...")
+    init_standard_divisions_from_json(default_divisions)
+    return default_divisions
+
+_ensure_standard_divisions_exist()
 
 
 def admin_required(f):
