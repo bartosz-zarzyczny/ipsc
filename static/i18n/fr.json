@@ -39,7 +39,9 @@
     "date": "Date",
     "level": "Niveau",
     "stages": "Épreuves",
+    "stageCountSuffix": "épreuves",
     "competitors": "Compétiteurs",
+    "competitorCountSuffix": "compétiteurs",
     "matches": "Compétitions",
     "disqualified": "DSQ"
   },
@@ -82,6 +84,11 @@
     "noShoot": "NS",
     "procedural": "PE",
     "disqualified": "Disqualifié"
+  },
+  "lists": {
+    "match": "compétition",
+    "matchPlural": "compétitions",
+    "levelLabel": "Niveau"
   },
   "language": {
     "select": "Langue",
