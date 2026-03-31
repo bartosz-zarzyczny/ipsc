@@ -107,16 +107,37 @@ def init_db() -> None:
             )
         """)
         
-        # Tabela mapowania dywizji (mapowanie między dywizjami z importu a standardowymi)
+        # Tabela mapowania dywizji per zawody.
         conn.execute("""
             CREATE TABLE IF NOT EXISTS division_mappings (
-                source_division TEXT PRIMARY KEY,
+                match_id INTEGER NOT NULL,
+                source_division TEXT NOT NULL,
                 mapped_division_id INTEGER NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-                FOREIGN KEY (mapped_division_id) REFERENCES standard_divisions(id)
+                PRIMARY KEY (match_id, source_division),
+                FOREIGN KEY (mapped_division_id) REFERENCES standard_divisions(id),
+                FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
             )
         """)
+
+        division_mapping_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(division_mappings)").fetchall()
+        }
+        if "match_id" not in division_mapping_columns:
+            conn.execute("ALTER TABLE division_mappings RENAME TO division_mappings_legacy")
+            conn.execute("""
+                CREATE TABLE division_mappings (
+                    match_id INTEGER NOT NULL,
+                    source_division TEXT NOT NULL,
+                    mapped_division_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    PRIMARY KEY (match_id, source_division),
+                    FOREIGN KEY (mapped_division_id) REFERENCES standard_divisions(id),
+                    FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+                )
+            """)
         
         # Migrate: dodaj kolumnę top_matches_count jeśli nie istnieje
         try:
@@ -519,7 +540,7 @@ def change_password(user_id: int, password_hash: str) -> bool:
 # Competitor management
 # ---------------------------------------------------------------------------
 
-def update_competitor_name(match_id: int, comp_id: str, firstname: str, lastname: str, category: str = None) -> bool:
+def update_competitor_name(match_id: int, comp_id: str, firstname: str, lastname: str, category: str | None = None) -> bool:
     """Update competitor's first name, last name, and optionally category in a match. Returns True if successful."""
     conn = get_db()
     try:
@@ -609,35 +630,39 @@ def delete_competitor_from_match(match_id: int, comp_id: str) -> bool:
 # Division Mappings
 # ---------------------------------------------------------------------------
 
-def get_division_mapping(source_division: str) -> int | None:
-    """Get the mapped standard division ID for a source division. Returns division ID or None."""
+def get_division_mapping(match_id: int, source_division: str) -> int | None:
+    """Get the mapped standard division ID for a source division in a specific match."""
     conn = get_db()
     row = conn.execute(
-        "SELECT mapped_division_id FROM division_mappings WHERE source_division = ?",
-        (source_division,)
+        """
+        SELECT mapped_division_id
+        FROM division_mappings
+        WHERE match_id = ? AND source_division = ?
+        """,
+        (match_id, source_division)
     ).fetchone()
     conn.close()
     return int(row["mapped_division_id"]) if row else None
 
 
-def set_division_mapping(source_division: str, mapped_division_id: int | None) -> bool:
-    """Set or update a division mapping. If mapped_division_id is None, removes the mapping."""
+def set_division_mapping(match_id: int, source_division: str, mapped_division_id: int | None) -> bool:
+    """Set or update a division mapping for a specific match."""
     conn = get_db()
     try:
         if mapped_division_id is None:
-            # Usuń mapowanie
             conn.execute(
-                "DELETE FROM division_mappings WHERE source_division = ?",
-                (source_division,)
+                "DELETE FROM division_mappings WHERE match_id = ? AND source_division = ?",
+                (match_id, source_division)
             )
         else:
-            # Dodaj lub zaktualizuj mapowanie
             conn.execute(
                 """
-                INSERT OR REPLACE INTO division_mappings (source_division, mapped_division_id, updated_at)
-                VALUES (?, ?, datetime('now'))
+                INSERT OR REPLACE INTO division_mappings (
+                    match_id, source_division, mapped_division_id, updated_at
+                )
+                VALUES (?, ?, ?, datetime('now'))
                 """,
-                (source_division, mapped_division_id)
+                (match_id, source_division, mapped_division_id)
             )
         conn.commit()
         return True
@@ -648,29 +673,45 @@ def set_division_mapping(source_division: str, mapped_division_id: int | None) -
         conn.close()
 
 
-def get_all_division_mappings() -> dict[str, int]:
-    """Get all division mappings as a dictionary {source_division: mapped_division_id}."""
+def get_all_division_mappings(match_id: int) -> dict[str, int]:
+    """Get all division mappings for a specific match."""
     conn = get_db()
     rows = conn.execute(
-        "SELECT source_division, mapped_division_id FROM division_mappings"
+        """
+        SELECT source_division, mapped_division_id
+        FROM division_mappings
+        WHERE match_id = ?
+        """,
+        (match_id,)
     ).fetchall()
     conn.close()
     return {row["source_division"]: int(row["mapped_division_id"]) for row in rows}
 
 
-def get_imported_divisions() -> list[str]:
-    """Get all source divisions that have been imported from matches. Returns sorted list."""
+def get_imported_divisions(match_id: int | None = None) -> list[str]:
+    """Get source divisions imported from matches, optionally scoped to one match."""
     conn = get_db()
     try:
-        # Zbierz wszystkie unikalne dywizje ze wszystkich zawodów
-        rows = conn.execute(
-            """
-            SELECT DISTINCT json_extract(value, '$.division') as division
-            FROM matches, json_each(matches.data_json, '$.competitors')
-            WHERE json_extract(value, '$.division') IS NOT NULL
-            ORDER BY division COLLATE NOCASE
-            """
-        ).fetchall()
+        if match_id is None:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT json_extract(value, '$.division') as division
+                FROM matches, json_each(matches.data_json, '$.competitors')
+                WHERE json_extract(value, '$.division') IS NOT NULL
+                ORDER BY division COLLATE NOCASE
+                """
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT json_extract(value, '$.division') as division
+                FROM matches, json_each(matches.data_json, '$.competitors')
+                WHERE matches.id = ?
+                  AND json_extract(value, '$.division') IS NOT NULL
+                ORDER BY division COLLATE NOCASE
+                """,
+                (match_id,)
+            ).fetchall()
         
         divisions = [row["division"] for row in rows if row["division"]]
         return sorted(list(set(divisions)))
@@ -825,11 +866,15 @@ def init_standard_divisions_from_json(divisions_list: list[dict]) -> bool:
         conn.close()
 
 
-def apply_division_mappings(match_data: dict) -> dict:
-    """Apply division mappings to competitors in match data. Returns modified data."""
+def apply_division_mappings(match_data: dict, match_id: int | None = None) -> dict:
+    """Apply division mappings to competitors in match data for one specific match."""
     try:
         data = json.loads(json.dumps(match_data))  # Deep copy
-        mappings = get_all_division_mappings()
+        resolved_match_id = match_id or data.get("match", {}).get("id")
+        if resolved_match_id is None:
+            return data
+
+        mappings = get_all_division_mappings(int(resolved_match_id))
         
         if not mappings:
             return data  # Brak mapowań

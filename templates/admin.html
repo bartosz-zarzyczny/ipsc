@@ -706,7 +706,6 @@
   
   let availableDivisions = [];
   let standardDivisionsMap = {}; // {id: name}
-  let allMatchesData = {}; // {match_id: match_data}
   
   // Zmienne będą zainicjalizowane podczas ładowania
   let divisionsMatchSelect;
@@ -736,7 +735,7 @@
   // Załaduj sve podatke o zavodima pri učitavanju
   async function initializeDivisionsTab() {
     try {
-      // Prvo učitaj standardne dywizje i mapirania
+      // Najpierw wczytaj standardowe dywizje.
       console.log('🔄 Inicjalizacja zakładki Mapowanie Dywizji...');
       const response = await fetch('/admin/api/divisions-mapping');
       if (!response.ok) {
@@ -753,29 +752,11 @@
       console.log('Dywizje:', availableDivisions);
       
       // Kreiraj mapu standardnih dywizja za lakši pristup
+      standardDivisionsMap = {};
       availableDivisions.forEach(div => {
         standardDivisionsMap[div.id] = div.name;
       });
-      
-      // Załaduj sve podatke o zavodima
-      const matchesResponse = await fetch('/api/matches');
-      if (!matchesResponse.ok) {
-        console.error('❌ Błąd wczytywania zawodów');
-        return;
-      }
-      
-      const matchesList = await matchesResponse.json();
-      console.log(`✓ Załadowano ${matchesList.length} zawodów`);
-      
-      // Za svaki zavor, załaduj detaljne podatke
-      for (const match of matchesList) {
-        const matchDataResponse = await fetch(`/api/matches/${match.id}`);
-        if (matchDataResponse.ok) {
-          allMatchesData[match.id] = await matchDataResponse.json();
-        }
-      }
-      
-      console.log('✓ Dane zawodów załadowane');
+      console.log('✓ Standardowe dywizje załadowane');
     } catch (err) {
       console.error('❌ Błąd inicjalizacji:', err);
     }
@@ -806,6 +787,7 @@
         console.log('📊 standard_divisions length:', Array.isArray(data.standard_divisions) ? data.standard_divisions.length : 'NOT ARRAY');
         
         availableDivisions = data.standard_divisions || [];
+        standardDivisionsMap = {};
         console.log(`✅ Załadowano dywizje po reloadzie: ${availableDivisions.length}`);
         availableDivisions.forEach(div => {
           standardDivisionsMap[div.id] = div.name;
@@ -813,7 +795,7 @@
       }
       
       // Pobierz mapowania
-      const mappingsResponse = await fetch('/admin/api/divisions-mapping');
+      const mappingsResponse = await fetch(`/admin/api/divisions-mapping?match_id=${encodeURIComponent(matchId)}`);
       const mappingsData = await mappingsResponse.json();
       const currentMappings = mappingsData.mappings || {};
       
@@ -821,16 +803,18 @@
       console.log(`Dostępne dywizje ${availableDivisions.length}:`, availableDivisions);
       
       // Zbierz unikalne dywizje z wybranego zawodu
-      const matchData = allMatchesData[matchId];
-      if (!matchData || !matchData.competitors) {
+      const competitorsResponse = await fetch(`/admin/api/competitors/${matchId}`);
+      if (!competitorsResponse.ok) {
         console.warn(`Brak danych zawodników dla zawodów ID ${matchId}`);
         divisionsContainer.style.display = 'none';
         noDivisionsMessage.style.display = 'block';
         return;
       }
+      const competitorsData = await competitorsResponse.json();
+      const competitors = competitorsData.competitors || [];
       
       const divisionsInMatch = new Set();
-      matchData.competitors.forEach(comp => {
+      competitors.forEach(comp => {
         if (comp.division) {
           divisionsInMatch.add(comp.division);
         }
@@ -887,6 +871,7 @@
   };
   
   async function updateDivisionMapping(select) {
+    const matchId = divisionsMatchSelect.value;
     const sourceDiv = select.getAttribute('data-source');
     const mappedDivisionId = select.value;
     
@@ -895,6 +880,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          match_id: matchId,
           source_division: sourceDiv,
           mapped_division_id: mappedDivisionId || null
         })
@@ -916,12 +902,14 @@
   
   async function clearDivisionMapping(sourceDiv) {
     if (!confirm(`Wyczyścić mapowanie dla "${sourceDiv}"?`)) return;
+    const matchId = divisionsMatchSelect.value;
     
     try {
       const response = await fetch('/admin/api/divisions-mapping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          match_id: matchId,
           source_division: sourceDiv,
           mapped_division_id: null
         })
