@@ -441,6 +441,19 @@
             {% endfor %}
           </select>
 
+          <label class="form-label small fw-semibold">Kopiuj mapowanie z innego zawodów</label>
+          <div class="input-group mb-3">
+            <select id="divisionsMatchCopySelect" class="form-control">
+              <option value="">— wybierz źródłowe zawody —</option>
+              {% for m in matches %}
+              <option value="{{ m.id }}">{{ m.name }} ({{ m.date or 'brak daty' }})</option>
+              {% endfor %}
+            </select>
+            <button id="copyDivisionsMappingBtn" type="button" class="btn btn-secondary" onclick="copyDivisionMappings()" title="Skopiuj wszystkie mapowania z wybranych zawodów">
+              <i class="bi bi-files"></i> Kopiuj mapowanie
+            </button>
+          </div>
+
           <div id="divisionsContainer" style="display:none;">
             <div class="d-flex justify-content-end mb-2">
               <button id="saveDivisionsMappingBtn" type="button" class="btn btn-sm btn-success" onclick="saveAllDivisionMappings()">
@@ -983,7 +996,51 @@
     alert('Wszystkie mapowania zostały zapisane.');
     divisionsMatchSelect.dispatchEvent(new Event('change'));
   }
-  
+
+  async function copyDivisionMappings() {
+    const targetId = divisionsMatchSelect.value;
+    const sourceId = document.getElementById('divisionsMatchCopySelect').value;
+
+    if (!targetId) {
+      alert('Wybierz najpierw zawody docelowe do mapowania.');
+      return;
+    }
+    if (!sourceId) {
+      alert('Wybierz zawody źródłowe do skopiowania mapowania.');
+      return;
+    }
+    if (sourceId === targetId) {
+      alert('Źródłowe i docelowe zawody nie mogą być takie same.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/admin/api/divisions-mapping/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_match_id: sourceId, target_match_id: targetId })
+      });
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        const text = await response.text();
+        console.error('Nieprawidłowy JSON w odpowiedzi:', text);
+        throw new Error(`Serwer zwrócił nieprawidłową odpowiedź: ${response.status}`);
+      }
+      if (!response.ok) {
+        alert(`Błąd kopiowania: ${data.error || 'Nie udało się skopiować mapowania'}`);
+        return;
+      }
+      alert(data.message || 'Mapowania zostały skopiowane');
+      // Przeładuj widok docelowego zawodów
+      divisionsMatchSelect.dispatchEvent(new Event('change'));
+    } catch (err) {
+      console.error('Błąd kopiowania mapowania:', err);
+      alert(err.message || 'Błąd po stronie serwera przy kopiowaniu mapowania');
+    }
+  }
+
   async function clearDivisionMapping(sourceDiv) {
     if (!confirm(`Wyczyścić mapowanie dla "${sourceDiv}"?`)) return;
     const matchId = divisionsMatchSelect.value;
