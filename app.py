@@ -61,6 +61,8 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
+SUPPORTED_LANGUAGES = ("pl", "en", "de", "fr", "cz")
+
 init_db()
 
 # Dane dywizji są teraz w bazie danych (tabela standard_divisions)
@@ -343,7 +345,7 @@ def api_get_match(match_id):
     result["match"]["id"] = match_id
     
     # Aplikuj mapowania dywizji
-    result = apply_division_mappings(result)
+    result = apply_division_mappings(result, match_id)
     
     return jsonify(result)
 
@@ -376,6 +378,7 @@ def api_get_ranking(ranking_id):
         match_result = get_match_with_multiplier(match_id)
         if match_result:
             match_result["match"]["id"] = match_id
+            match_result = apply_division_mappings(match_result, match_id)
             matches_data.append(match_result)
     
     result["matches"] = matches_data
@@ -602,7 +605,7 @@ def admin_delete_user(user_id):
 def admin_change_password():
     """Change password for logged-in user."""
     username = session.get("username")
-    user_id = session.get("user_id")
+    raw_user_id = session.get("user_id")
     current_pwd = request.form.get("current_password", "")
     new_pwd = request.form.get("new_password", "")
     confirm_pwd = request.form.get("confirm_password", "")
@@ -615,8 +618,18 @@ def admin_change_password():
         return redirect(url_for("admin_panel") + "?tab=users&error=Has%C5%82a+nie+zgadzaj%C4%85+si%C4%99")
     
     # Check session
-    if not user_id or user_id is None:
+    if not isinstance(username, str) or not username:
+        print(f"[ERROR] Zmiana hasła: brak username w sesji. user_id={raw_user_id}")
+        return redirect(url_for("admin_panel") + "?tab=users&error=B%C5%82%C4%85d+sesji")
+
+    if not isinstance(raw_user_id, (int, str)):
         print(f"[ERROR] Zmiana hasła: brak user_id w sesji. username={username}")
+        return redirect(url_for("admin_panel") + "?tab=users&error=B%C5%82%C4%85d+sesji")
+
+    try:
+        user_id = int(raw_user_id)
+    except (TypeError, ValueError):
+        print(f"[ERROR] Zmiana hasła: nieprawidłowy user_id w sesji. username={username}, user_id={raw_user_id}")
         return redirect(url_for("admin_panel") + "?tab=users&error=B%C5%82%C4%85d+sesji")
     
     # Verify current password
@@ -687,7 +700,8 @@ def admin_update_competitor(match_id):
     comp_id = data.get("comp_id")
     firstname = data.get("firstname", "").strip()
     lastname = data.get("lastname", "").strip()
-    category = data.get("category", "").strip() or None
+    raw_category = data.get("category", "")
+    category = raw_category.strip() if isinstance(raw_category, str) and raw_category.strip() else None
     
     if not comp_id or not firstname or not lastname:
         return jsonify({"error": "Brak wymaganych pól: comp_id, firstname, lastname"}), 400
@@ -716,11 +730,13 @@ def admin_delete_competitor(match_id, comp_id):
 @admin_required
 def admin_api_get_divisions_mapping():
     """Get all division mappings and available standard divisions."""
+    match_id = request.args.get("match_id", type=int)
+
     # Pobierz dywizje z bazy
     standard_divs = get_standard_divisions()
     
-    mappings = get_all_division_mappings()
-    imported_divisions = get_imported_divisions()
+    mappings = get_all_division_mappings(match_id) if match_id is not None else {}
+    imported_divisions = get_imported_divisions(match_id)
     
     result = {
         "standard_divisions": standard_divs,
@@ -735,8 +751,17 @@ def admin_api_get_divisions_mapping():
 def admin_api_set_divisions_mapping():
     """Set or update a division mapping."""
     data = request.get_json() or {}
+    raw_match_id = data.get("match_id")
     source_division = data.get("source_division", "").strip()
     mapped_division_id = data.get("mapped_division_id")
+
+    if not isinstance(raw_match_id, (int, str)):
+        return jsonify({"error": "match_id jest wymagany i musi być liczbą"}), 400
+
+    try:
+        match_id = int(raw_match_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "match_id jest wymagany i musi być liczbą"}), 400
     
     if not source_division:
         return jsonify({"error": "source_division jest wymagany"}), 400
@@ -748,10 +773,10 @@ def admin_api_set_divisions_mapping():
         except (TypeError, ValueError):
             return jsonify({"error": "mapped_division_id musi być liczbą"}), 400
     
-    if set_division_mapping(source_division, mapped_division_id):
+    if set_division_mapping(match_id, source_division, mapped_division_id):
         return jsonify({
             "ok": True,
-            "message": f"Mapowanie dla '{source_division}' zaktualizowane"
+            "message": f"Mapowanie dla '{source_division}' w zawodach {match_id} zaktualizowane"
         })
     else:
         return jsonify({"error": "Nie udało się zapisać mapowania"}), 500
