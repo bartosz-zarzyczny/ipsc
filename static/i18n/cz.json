@@ -39,7 +39,9 @@
     "date": "Datum",
     "level": "Úroveň",
     "stages": "Střelecká stanoviště",
+    "stageCountSuffix": "střeleckých stanovišť",
     "competitors": "Závodníci",
+    "competitorCountSuffix": "závodníků",
     "matches": "Závody",
     "disqualified": "DSQ"
   },
@@ -82,6 +84,11 @@
     "noShoot": "NS",
     "procedural": "PE",
     "disqualified": "Diskvalifikován"
+  },
+  "lists": {
+    "match": "závod",
+    "matchPlural": "závody",
+    "levelLabel": "Úroveň"
   },
   "language": {
     "select": "Jazyk",

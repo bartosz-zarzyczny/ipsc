@@ -39,7 +39,9 @@
     "date": "Data",
     "level": "Poziom",
     "stages": "Tory",
+    "stageCountSuffix": "torów",
     "competitors": "Zawodnicy",
+    "competitorCountSuffix": "zawodników",
     "matches": "Zawody",
     "disqualified": "DSQ"
   },
@@ -82,6 +84,11 @@
     "noShoot": "NS",
     "procedural": "PE",
     "disqualified": "Dyskwalifikowany"
+  },
+  "lists": {
+    "match": "zawód",
+    "matchPlural": "zawodów",
+    "levelLabel": "Poziom"
   },
   "language": {
     "select": "Język",

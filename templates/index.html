@@ -378,9 +378,9 @@
       <h2 id="r-name"></h2>
       <div class="match-meta" id="match-meta-info">
         <span><i class="bi bi-calendar3"></i> <span id="r-date"></span></span>
-        <span><i class="bi bi-trophy"></i> Poziom&nbsp;L<span id="r-level"></span></span>
-        <span><i class="bi bi-list-ol"></i> <span id="r-stages"></span>&nbsp;torów</span>
-        <span><i class="bi bi-people"></i> <span id="r-comps"></span>&nbsp;zawodników</span>
+        <span><i class="bi bi-trophy"></i> <span data-i18n="meta.level">Poziom</span>&nbsp;L<span id="r-level"></span></span>
+        <span><i class="bi bi-list-ol"></i> <span id="r-stages"></span>&nbsp;<span data-i18n="meta.stageCountSuffix">torów</span></span>
+        <span><i class="bi bi-people"></i> <span id="r-comps"></span>&nbsp;<span data-i18n="meta.competitorCountSuffix">zawodników</span></span>
       </div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
@@ -578,6 +578,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load translations
   await loadTranslations(savedLang);
   
+  // Load match and ranking lists after translations are loaded
+  loadMatchList();
+  loadRankingList();
+  
   // Check for URL parameters and load if present
   checkURLParameters();
 });
@@ -672,7 +676,7 @@ function loadMatchList() {
             <div class="match-title">${esc(m.name)}</div>
             <div class="match-meta-sm">
               <i class="bi bi-calendar3"></i> ${esc(m.date || '–')}
-              &nbsp;·&nbsp;Poziom L${m.level}
+              &nbsp;·&nbsp;${getTrans('lists.levelLabel')} L${m.level}
               &nbsp;·&nbsp;<i class="bi bi-clock"></i> ${esc(m.created_at)}
             </div>
           </div>
@@ -688,10 +692,6 @@ function loadMatch(id) {
     .then(d => { if (d.error) throw new Error(d.error); initResults(d); updateURLState('match', id); })
     .catch(e => { show($upload); uploadErr(e.message); });
 }
-
-// Load match list on page load
-loadMatchList();
-loadRankingList();
 
 function loadRankingList() {
   fetch('/api/rankings')
@@ -712,7 +712,7 @@ function loadRankingList() {
           <div class="match-info">
             <div class="match-title">${esc(r.name)}</div>
             <div class="match-meta-sm">
-              <i class="bi bi-list-ol"></i> ${r.match_count} ${r.match_count === 1 ? 'zawód' : 'zawodów'}
+              <i class="bi bi-list-ol"></i> ${r.match_count} ${r.match_count === 1 ? getTrans('lists.match') : getTrans('lists.matchPlural')}
               &nbsp;·&nbsp;<i class="bi bi-clock"></i> ${esc(r.created_at)}
             </div>
           </div>
@@ -836,6 +836,9 @@ function initResults(data) {
   document.getElementById('r-comps').textContent  = data.competitors.length;
   document.title = data.match.name + ' — WinMSS';
 
+  // Update i18n labels
+  updateUIText();
+
   // Podium
   renderPodium(data);
 
@@ -863,12 +866,16 @@ function initResults(data) {
   // Stage buttons
   const sb = document.getElementById('stage-btns');
   sb.innerHTML = data.stages.map((s, i) =>
-    `<button class="sbtn${i === 0 ? ' active' : ''}" onclick="selectStage(${i},this)">${esc(s.name)}<small class="ms-1 opacity-60">/${s.max_points}</small></button>`
+    `<button class="sbtn${i === 0 ? ' active' : ''}" onclick="selectStage(${i},this)">${getTrans('table.stage')} ${i+1}/<small class="ms-1 opacity-60">${data.stages.length}</small></button>`
   ).join('');
 
   G.tab = 'overall';
   highlightTab('overall');
   applyFilters();
+  
+  // Translate all dynamic elements
+  updateUIText();
+  
   show($results);
 }
 
@@ -994,6 +1001,9 @@ function initRankingResults(rankingData) {
   document.getElementById('r-level').textContent = rankingData.match_count;
   document.getElementById('r-stages').textContent = rankingData.match_count;
   document.getElementById('r-comps').textContent = merged.filter(c => !c.is_disq).length;
+
+  // Update i18n labels
+  updateUIText();
 
   // Hide podium for rankings
   document.getElementById('podium-row').innerHTML = '';
@@ -1165,6 +1175,9 @@ function renderRankingTable() {
   }).join('');
 
   document.getElementById('overall-body').innerHTML = bodyHTML || `<tr><td colspan="100" class="text-center text-muted py-4">${getTrans('messages.noResults')}</td></tr>`;
+  
+  // Translate all dynamic elements
+  updateUIText();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1390,6 +1403,9 @@ function renderOverall(list) {
       <td class="text-muted text-center"><i class="bi bi-chevron-down small"></i></td>
     </tr>`;
   }).join('');
+  
+  // Translate all dynamic elements
+  updateUIText();
 }
 
 /* Stage-detail sub-row (click to expand) */
@@ -1502,6 +1518,9 @@ function renderDivisions(list) {
   }
 
   document.getElementById('div-content').innerHTML = html || `<p class="text-muted p-3">${getTrans('messages.noResults')}</p>`;
+  
+  // Translate all dynamic elements
+  updateUIText();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1579,6 +1598,9 @@ function renderStage(idx, filtered) {
   }).join('');
 
   document.getElementById('stage-body').innerHTML = rows;
+  
+  // Translate all dynamic elements
+  updateUIText();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
