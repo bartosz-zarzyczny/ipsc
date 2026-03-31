@@ -750,6 +750,36 @@ def get_all_division_mappings(match_id: int) -> dict[str, dict]:
     }
 
 
+def copy_division_mappings(source_match_id: int, target_match_id: int) -> bool:
+    """Copy division mappings from one match to another."""
+    try:
+        source_mappings = get_all_division_mappings(source_match_id)
+        if not source_mappings:
+            return True
+
+        conn = get_db()
+        for src_div, mapping in source_mappings.items():
+            mapped_division_id = mapping.get("mapped_division_id")
+            color = mapping.get("color")
+
+            if mapped_division_id is not None:
+                # Walidacja FK: upewnij się, że docelowa dywizja istnieje
+                if get_standard_division(mapped_division_id) is None:
+                    mapped_division_id = None
+
+            conn.execute(
+                "INSERT OR REPLACE INTO division_mappings (match_id, source_division, mapped_division_id, color, updated_at) VALUES (?, ?, ?, ?, datetime('now'))",
+                (target_match_id, src_div, mapped_division_id, color)
+            )
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Błąd kopiowania mapowania dywizji: {e}")
+        return False
+
+
 def get_imported_divisions(match_id: int | None = None) -> list[str]:
     """Get source divisions imported from matches, optionally scoped to one match."""
     conn = get_db()

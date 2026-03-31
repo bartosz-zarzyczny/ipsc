@@ -47,6 +47,7 @@ from database import (
     get_division_mapping,
     set_division_mapping,
     get_all_division_mappings,
+    copy_division_mappings,
     get_imported_divisions,
     get_standard_divisions,
     get_standard_division,
@@ -786,6 +787,31 @@ def admin_api_set_divisions_mapping():
         })
     else:
         return jsonify({"error": "Nie udało się zapisać mapowania"}), 500
+
+
+@app.route("/admin/api/divisions-mapping/copy", methods=["POST"])
+@admin_required
+def admin_api_copy_divisions_mapping():
+    """Copy all division mapping from source_match_id to target_match_id."""
+    data = request.get_json() or {}
+    source_match_id = data.get("source_match_id")
+    target_match_id = data.get("target_match_id")
+
+    if not isinstance(source_match_id, (int, str)) or not isinstance(target_match_id, (int, str)):
+        return jsonify({"error": "source_match_id i target_match_id są wymagane i muszą być liczbami"}), 400
+
+    try:
+        source_match_id = int(source_match_id)
+        target_match_id = int(target_match_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "source_match_id i target_match_id muszą być liczbami"}), 400
+
+    if source_match_id == target_match_id:
+        return jsonify({"error": "source_match_id i target_match_id nie mogą być takie same"}), 400
+
+    if copy_division_mappings(source_match_id, target_match_id):
+        return jsonify({"ok": True, "message": f"Mapowania skopiowane z {source_match_id} do {target_match_id}"})
+    return jsonify({"error": "Nie udało się skopiować mapowania"}), 500
 
 
 @app.route("/admin/api/standard-divisions", methods=["GET"])
