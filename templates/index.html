@@ -903,6 +903,14 @@ function initRankingResults(rankingData) {
     competitors: m.competitors,
   }));
 
+  // Collect any division color mappings from all staging matches
+  G.division_colors = {};
+  rankingData.matches.forEach(m => {
+    if (m.division_colors) {
+      Object.assign(G.division_colors, m.division_colors);
+    }
+  });
+
   // Build competitor data with per-match results
   // Use name+division as unique key (comp_id changes across matches)
   const compMap = {}; // "Name|Division" -> { name, division, ..., matchResults: [...] }
@@ -1916,6 +1924,13 @@ function generateMatchPDFContent() {
 }
 
 function getDivisionColor(div) {
+  if (G.division_colors && G.division_colors[div]) {
+    return G.division_colors[div];
+  }
+  if (G.data && G.data.division_colors && G.data.division_colors[div]) {
+    return G.data.division_colors[div];
+  }
+
   const colors = {
     'Open':            '#c0392b',
     'Standard':        '#1a5276',
@@ -1923,6 +1938,16 @@ function getDivisionColor(div) {
     'Modified':        '#1e8449',
   };
   return colors[div] || '#888';
+}
+
+function getCustomDivisionColor(div) {
+  if (G.division_colors && G.division_colors[div]) {
+    return G.division_colors[div];
+  }
+  if (G.data && G.data.division_colors && G.data.division_colors[div]) {
+    return G.data.division_colors[div];
+  }
+  return DIV_BG[div] || '#555';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1945,7 +1970,7 @@ const DIV_BG = {
   'Modified':        '#1e8449',
 };
 function divBadge(div, size) {
-  const bg = DIV_BG[div] || '#555';
+  const bg = getCustomDivisionColor(div);
   const fs = size === 'lg' ? 'font-size:.85rem;padding:4px 12px' : 'font-size:.74rem';
   return `<span class="badge-div" style="background:${bg};${fs}">${esc(div)}</span>`;
 }

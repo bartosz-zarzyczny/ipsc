@@ -766,14 +766,20 @@ def admin_api_set_divisions_mapping():
     if not source_division:
         return jsonify({"error": "source_division jest wymagany"}), 400
     
-    # Jeśli mapped_division_id jest pusty, usuń mapowanie
+    mapped_division_color = data.get("mapped_division_color")
+
+    # Jeśli mapped_division_id jest pusty, usuń mapowanie / zachowaj tylko kolor
     if mapped_division_id is not None:
         try:
             mapped_division_id = int(mapped_division_id)
         except (TypeError, ValueError):
             return jsonify({"error": "mapped_division_id musi być liczbą"}), 400
-    
-    if set_division_mapping(match_id, source_division, mapped_division_id):
+
+    # Normalize color (puste => None)
+    if isinstance(mapped_division_color, str):
+        mapped_division_color = mapped_division_color.strip() or None
+
+    if set_division_mapping(match_id, source_division, mapped_division_id, mapped_division_color):
         return jsonify({
             "ok": True,
             "message": f"Mapowanie dla '{source_division}' w zawodach {match_id} zaktualizowane"
