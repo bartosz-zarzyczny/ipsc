@@ -112,7 +112,8 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS division_mappings (
                 match_id INTEGER NOT NULL,
                 source_division TEXT NOT NULL,
-                mapped_division_id INTEGER NOT NULL,
+                mapped_division_id INTEGER,
+                color TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                 PRIMARY KEY (match_id, source_division),
@@ -124,13 +125,19 @@ def init_db() -> None:
         division_mapping_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(division_mappings)").fetchall()
         }
+
+        # Ensure intermediate migration table is not already present
+        conn.execute("DROP TABLE IF EXISTS division_mappings_legacy")
+
+        # If table existed from old version and didn't have match_id, rebuild once.
         if "match_id" not in division_mapping_columns:
             conn.execute("ALTER TABLE division_mappings RENAME TO division_mappings_legacy")
             conn.execute("""
                 CREATE TABLE division_mappings (
                     match_id INTEGER NOT NULL,
                     source_division TEXT NOT NULL,
-                    mapped_division_id INTEGER NOT NULL,
+                    mapped_division_id INTEGER,
+                    color TEXT,
                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
                     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                     PRIMARY KEY (match_id, source_division),
@@ -138,12 +145,51 @@ def init_db() -> None:
                     FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
                 )
             """)
+            conn.execute("""
+                INSERT INTO division_mappings (match_id, source_division, mapped_division_id, color, created_at, updated_at)
+                SELECT match_id, source_division, NULLIF(mapped_division_id, 0), color, created_at, updated_at
+                FROM division_mappings_legacy
+            """)
+            conn.execute("DROP TABLE division_mappings_legacy")
+
+        else:
+            # Migrate from old notnull mapped_division_id to nullable.
+            dm_info = conn.execute("PRAGMA table_info(division_mappings)").fetchall()
+            mapped_info = next((c for c in dm_info if c["name"] == "mapped_division_id"), None)
+            if mapped_info and mapped_info["notnull"] == 1:
+                conn.execute("ALTER TABLE division_mappings RENAME TO division_mappings_legacy")
+                conn.execute("""
+                    CREATE TABLE division_mappings (
+                        match_id INTEGER NOT NULL,
+                        source_division TEXT NOT NULL,
+                        mapped_division_id INTEGER,
+                        color TEXT,
+                        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        PRIMARY KEY (match_id, source_division),
+                        FOREIGN KEY (mapped_division_id) REFERENCES standard_divisions(id),
+                        FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+                    )
+                """)
+                conn.execute("""
+                    INSERT INTO division_mappings (match_id, source_division, mapped_division_id, color, created_at, updated_at)
+                    SELECT match_id, source_division, NULLIF(mapped_division_id, 0), color, created_at, updated_at
+                    FROM division_mappings_legacy
+                """)
+                conn.execute("DROP TABLE division_mappings_legacy")
         
         # Migrate: dodaj kolumnę top_matches_count jeśli nie istnieje
         try:
             conn.execute("ALTER TABLE rankings ADD COLUMN top_matches_count INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # Kolumna już istnieje
+
+        # Migrate: dodaj kolumnę color do division_mappings jeśli nie istnieje
+        try:
+            if 'color' not in {row['name'] for row in conn.execute('PRAGMA table_info(division_mappings)').fetchall()}:
+                conn.execute('ALTER TABLE division_mappings ADD COLUMN color TEXT')
+        except sqlite3.OperationalError:
+            pass  # Kolumna już istnieje lub tabela tymczasowo nie istnieje
         
         # Migrate: dodaj kolumnę multiplier jeśli nie istnieje
         try:
@@ -630,39 +676,49 @@ def delete_competitor_from_match(match_id: int, comp_id: str) -> bool:
 # Division Mappings
 # ---------------------------------------------------------------------------
 
-def get_division_mapping(match_id: int, source_division: str) -> int | None:
-    """Get the mapped standard division ID for a source division in a specific match."""
+def get_division_mapping(match_id: int, source_division: str) -> dict | None:
+    """Get the mapped info for a source division in a specific match. Returns dict with mapped_division_id and color."""
     conn = get_db()
     row = conn.execute(
         """
-        SELECT mapped_division_id
+        SELECT mapped_division_id, color
         FROM division_mappings
         WHERE match_id = ? AND source_division = ?
         """,
         (match_id, source_division)
     ).fetchone()
     conn.close()
-    return int(row["mapped_division_id"]) if row else None
+    if not row:
+        return None
+    mapped_id = int(row["mapped_division_id"]) if row["mapped_division_id"] is not None else None
+    return {
+        "mapped_division_id": mapped_id if mapped_id and mapped_id > 0 else None,
+        "color": row["color"] or None,
+    }
 
 
-def set_division_mapping(match_id: int, source_division: str, mapped_division_id: int | None) -> bool:
+def set_division_mapping(match_id: int, source_division: str, mapped_division_id: int | None, color: str | None = None) -> bool:
     """Set or update a division mapping for a specific match."""
     conn = get_db()
     try:
-        if mapped_division_id is None:
+        # Usuń mapowanie, jeśli nie ma nic do zapisania
+        if mapped_division_id is None and (color is None or color.strip() == ""):
             conn.execute(
                 "DELETE FROM division_mappings WHERE match_id = ? AND source_division = ?",
                 (match_id, source_division)
             )
         else:
+            db_mapped_division_id = mapped_division_id if mapped_division_id is not None else None
+            db_color = color.strip() if isinstance(color, str) and color.strip() else None
+
             conn.execute(
                 """
                 INSERT OR REPLACE INTO division_mappings (
-                    match_id, source_division, mapped_division_id, updated_at
+                    match_id, source_division, mapped_division_id, color, updated_at
                 )
-                VALUES (?, ?, ?, datetime('now'))
+                VALUES (?, ?, ?, ?, datetime('now'))
                 """,
-                (match_id, source_division, mapped_division_id)
+                (match_id, source_division, db_mapped_division_id, db_color)
             )
         conn.commit()
         return True
@@ -673,19 +729,25 @@ def set_division_mapping(match_id: int, source_division: str, mapped_division_id
         conn.close()
 
 
-def get_all_division_mappings(match_id: int) -> dict[str, int]:
+def get_all_division_mappings(match_id: int) -> dict[str, dict]:
     """Get all division mappings for a specific match."""
     conn = get_db()
     rows = conn.execute(
         """
-        SELECT source_division, mapped_division_id
+        SELECT source_division, mapped_division_id, color
         FROM division_mappings
         WHERE match_id = ?
         """,
         (match_id,)
     ).fetchall()
     conn.close()
-    return {row["source_division"]: int(row["mapped_division_id"]) for row in rows}
+    return {
+        row["source_division"]: {
+            "mapped_division_id": (int(row["mapped_division_id"]) if row["mapped_division_id"] is not None and int(row["mapped_division_id"]) > 0 else None),
+            "color": row["color"] or None,
+        }
+        for row in rows
+    }
 
 
 def get_imported_divisions(match_id: int | None = None) -> list[str]:
@@ -878,18 +940,33 @@ def apply_division_mappings(match_data: dict, match_id: int | None = None) -> di
         
         if not mappings:
             return data  # Brak mapowań
-        
+
+        # Zbierz kolory dywizji w mapowaniach
+        division_colors = {}
+
         # Aplikuj mapowania do każdego zawodnika
         for competitor in data.get("competitors", []):
             original_division = competitor.get("division")
             if original_division and original_division in mappings:
-                mapped_division_id = mappings[original_division]
-                # Pobierz nazwę zmapowanej dywizji
-                mapped_div = get_standard_division(mapped_division_id)
-                if mapped_div:
-                    competitor["division"] = mapped_div["name"]
-                    competitor["_original_division"] = original_division  # Zapisz oryginał dla referencji
-        
+                mapping_info = mappings[original_division]
+                mapped_division_id = mapping_info.get("mapped_division_id")
+                mapped_color = mapping_info.get("color")
+
+                # Uaktualnij nazwę dywizji jeśli zmapowana
+                if mapped_division_id is not None:
+                    mapped_div = get_standard_division(mapped_division_id)
+                    if mapped_div:
+                        competitor["division"] = mapped_div["name"]
+                        competitor["_original_division"] = original_division  # Zapisz oryginał dla referencji
+
+                # Ustaw kolor jeśli podano
+                if mapped_color:
+                    competitor["division_color"] = mapped_color
+                    division_colors[competitor["division"]] = mapped_color
+
+        if division_colors:
+            data["division_colors"] = division_colors
+
         return data
     except Exception as e:
         print(f"Błąd stosowania mapowań dywizji: {e}")

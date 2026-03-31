@@ -442,12 +442,18 @@
           </select>
 
           <div id="divisionsContainer" style="display:none;">
+            <div class="d-flex justify-content-end mb-2">
+              <button id="saveDivisionsMappingBtn" type="button" class="btn btn-sm btn-success" onclick="saveAllDivisionMappings()">
+                <i class="bi bi-save"></i> Zapisz mapowania
+              </button>
+            </div>
             <div class="table-responsive">
               <table class="table table-hover align-middle mb-0 small">
                 <thead class="table-light">
                   <tr>
                     <th>Dywizja z zawodów</th>
                     <th>Mapuj na standardową dywizję</th>
+                    <th style="width: 150px;">Kolor etykiety</th>
                     <th class="text-end">Akcje</th>
                   </tr>
                 </thead>
@@ -762,6 +768,13 @@
     }
   }
   
+  function getRandomDivisionColor() {
+    const palette = [
+      '#e74c3c', '#8e44ad', '#3498db', '#16a085', '#f39c12', '#d35400', '#2c3e50', '#27ae60', '#2980b9', '#7f8c8d'
+    ];
+    return palette[Math.floor(Math.random() * palette.length)];
+  }
+
   // Obsługuj zmianę selektora zawodów
   async function handleDivisionsMatchChange() {
     const matchId = divisionsMatchSelect.value;
@@ -831,14 +844,15 @@
       
       noDivisionsMessage.style.display = 'none';
       divisionsMappingList.innerHTML = divisions.map(div => {
-        const mappedId = currentMappings[div];
+        const mappingInfo = currentMappings[div] || {};
+        const mappedId = mappingInfo.mapped_division_id;
+        const mappedColor = mappingInfo.color || getRandomDivisionColor();
         const mappedName = mappedId ? standardDivisionsMap[mappedId] : '';
-        
+
         // Debug: wypisz co się buduje
-        console.log(`🔨 Building row for: ${div}, mappedId: ${mappedId}, mappedName: ${mappedName}`);
+        console.log(`🔨 Building row for: ${div}, mappedId: ${mappedId}, mappedName: ${mappedName}, color: ${mappedColor}`);
         console.log(`   Available divisions for options: ${availableDivisions.length}`);
-        
-        
+
         const optionsHTML = availableDivisions.map(stdDiv => {
           const selected = mappedId && (mappedId == stdDiv.id || parseInt(mappedId) == stdDiv.id) ? 'selected' : '';
           return `<option value="${stdDiv.id}" ${selected}>${stdDiv.name}</option>`;
@@ -852,6 +866,9 @@
                 <option value="">— brak mapowania —</option>
                 ${optionsHTML}
               </select>
+            </td>
+            <td>
+              <input type="color" class="form-control form-control-color form-control-sm division-color-input" data-source="${div}" value="${mappedColor}" onchange="updateDivisionMapping(this)" title="Wybierz kolor oznaczenia dywizji" />
             </td>
             <td class="text-end">
               <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearDivisionMapping('${div}')">
@@ -870,11 +887,19 @@
     }
   };
   
-  async function updateDivisionMapping(select) {
+  async function updateDivisionMapping(elem) {
     const matchId = divisionsMatchSelect.value;
-    const sourceDiv = select.getAttribute('data-source');
-    const mappedDivisionId = select.value;
-    
+    const sourceDiv = elem.getAttribute('data-source');
+
+    const row = elem.closest('tr');
+    if (!row) return;
+
+    const select = row.querySelector('.division-mapping-select');
+    const colorInput = row.querySelector('.division-color-input');
+
+    const mappedDivisionId = select ? select.value : null;
+    const mappedDivisionColor = colorInput ? colorInput.value : null;
+
     try {
       const response = await fetch('/admin/api/divisions-mapping', {
         method: 'POST',
@@ -882,22 +907,81 @@
         body: JSON.stringify({
           match_id: matchId,
           source_division: sourceDiv,
-          mapped_division_id: mappedDivisionId || null
+          mapped_division_id: mappedDivisionId || null,
+          mapped_division_color: mappedDivisionColor || null
         })
       });
-      
-      const data = await response.json();
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        data = { error: await response.text() };
+      }
       if (!response.ok) {
+        console.error('API error:', response.status, data);
         alert(`Błąd: ${data.error || 'Nie udało się zapisać mapowania'}`);
         return;
       }
-      
+
       // Odśwież widok
       divisionsMatchSelect.dispatchEvent(new Event('change'));
     } catch (err) {
       console.error('Błąd:', err);
       alert('Błąd podczas zapisywania mapowania');
     }
+  }
+  
+  async function saveAllDivisionMappings() {
+    const matchId = divisionsMatchSelect.value;
+    if (!matchId) {
+      alert('Wybierz najpierw zawody.');
+      return;
+    }
+
+    const rows = Array.from(document.querySelectorAll('#divisionsMappingList tr'));
+    if (!rows.length) {
+      alert('Brak dywizji do zapisania.');
+      return;
+    }
+
+    const saves = rows.map(async row => {
+      const sourceDiv = row.querySelector('.division-mapping-select')?.getAttribute('data-source');
+      const mappedDivisionId = row.querySelector('.division-mapping-select')?.value || null;
+      const mappedDivisionColor = row.querySelector('.division-color-input')?.value || null;
+
+      if (!sourceDiv) return {ok:true};
+
+      const response = await fetch('/admin/api/divisions-mapping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          match_id: matchId,
+          source_division: sourceDiv,
+          mapped_division_id: mappedDivisionId || null,
+          mapped_division_color: mappedDivisionColor || null
+        })
+      });
+      if (response.ok) return {ok:true};
+      let data;
+      try {
+        data = await response.json();
+      } catch (_e) {
+        data = { error: await response.text() };
+      }
+      return {ok:false, data};
+    });
+
+    const results = await Promise.all(saves);
+    const failed = results.filter(r => !r.ok);
+    if (failed.length > 0) {
+      console.error('Niektóre zapisy się nie powiodły:', failed);
+      alert(`Niektóre ustawienia nie mogły zostać zapisane (${failed.length}/${results.length}). Sprawdź konsolę.`);
+      return;
+    }
+
+    alert('Wszystkie mapowania zostały zapisane.');
+    divisionsMatchSelect.dispatchEvent(new Event('change'));
   }
   
   async function clearDivisionMapping(sourceDiv) {
@@ -911,7 +995,8 @@
         body: JSON.stringify({
           match_id: matchId,
           source_division: sourceDiv,
-          mapped_division_id: null
+          mapped_division_id: null,
+          mapped_division_color: null
         })
       });
       
@@ -931,6 +1016,7 @@
   // Udostępnij funkcje globalnie dla onclick handlerów
   window.updateDivisionMapping = updateDivisionMapping;
   window.clearDivisionMapping = clearDivisionMapping;
+  window.saveAllDivisionMappings = saveAllDivisionMappings;
   
   // Wczytaj mapowania dywizji gdy zakładka się załaduje
   document.getElementById('divisions-tab').addEventListener('click', function() {
