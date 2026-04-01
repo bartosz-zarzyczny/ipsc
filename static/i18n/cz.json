@@ -50,6 +50,10 @@
     "allCategories": "Všechny kategorie",
     "search": "Hledat"
   },
+  "actions": {
+    "clear": "Vyčistit",
+    "clearAll": "Vyčistit filtry"
+  },
   "results": {
     "podium": "Pódium",
     "disqualified": "Diskvalifikován",

@@ -50,6 +50,10 @@
     "allCategories": "Alle Kategorien",
     "search": "Suchen"
   },
+  "actions": {
+    "clear": "Zurücksetzen",
+    "clearAll": "Filter zurücksetzen"
+  },
   "results": {
     "podium": "Podium",
     "disqualified": "Disqualifiziert",
