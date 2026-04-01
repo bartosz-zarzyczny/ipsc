@@ -404,16 +404,44 @@
         <div class="row g-2 align-items-center">
           
           <div class="col-md-3">
-            <select class="form-select form-select-sm" id="f-div" onchange="applyFilters()">
-              <option value="" data-i18n="filters.allDivisions">Wszystkie dywizje</option>
-            </select>
+            <div class="dropdown">
+              <button class="btn btn-outline-secondary btn-sm dropdown-toggle w-100 text-start" type="button"
+                      id="divDropdownButton" data-bs-toggle="dropdown" aria-expanded="false">
+                <span id="f-div-label" data-i18n="filters.allDivisions">Wszystkie dywizje</span>
+              </button>
+              <div class="dropdown-menu p-2 division-dropdown-menu" aria-labelledby="divDropdownButton" id="f-div-menu" style="max-height:220px; overflow-y:auto; min-width:220px;">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <small class="text-muted">Filtr dywizji</small>
+                  <button class="btn btn-sm btn-link p-0" type="button" onclick="clearDivisionFilters()">
+                    <i class="bi bi-x-circle"></i> <span data-i18n="actions.clear">Wyczyść</span>
+                  </button>
+                </div>
+                <div class="form-check mb-1">
+                  <input class="form-check-input" type="checkbox" value="*" id="f-div-all">
+                  <label class="form-check-label" for="f-div-all" data-i18n="filters.allDivisions">
+                    <i class="bi bi-check2-square me-1"></i>Wszystkie dywizje
+                  </label>
+                </div>
+                <div id="f-div-options"></div>
+              </div>
+            </div>
           </div>
           <div class="col-md-3">
-            <select class="form-select form-select-sm" id="f-cat" onchange="applyFilters()">
-              <option value="" data-i18n="filters.allCategories">Wszystkie kategorie</option>
-            </select>
+            <div class="d-flex align-items-center gap-1">
+              <select class="form-select form-select-sm" id="f-cat" onchange="applyFilters()">
+                <option value="" data-i18n="filters.allCategories">Wszystkie kategorie</option>
+              </select>
+              <button id="clear-category-btn" class="btn btn-sm btn-outline-secondary" type="button" onclick="clearCategoryFilter()" title="Wyczyść kategorię" data-i18n="actions.clear" style="display:none;">
+                <i class="bi bi-x-circle"></i>
+              </button>
+            </div>
           </div>
           <div class="col-md-2 text-muted small text-end" id="f-count"></div>
+          <div class="col-md-2 text-end">
+            <button id="f-clear-all" class="btn btn-sm btn-outline-secondary" type="button" onclick="clearAllFilters()" style="display:none;">
+              <i class="bi bi-x-lg"></i> <span data-i18n="actions.clearAll">Wyczyść filtry</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -629,9 +657,13 @@ function switchMainTab(tabName) {
   G.sort = { col: 'rank', dir: 'asc' };
   
   // Resetuj filtry
-  const fDiv = document.getElementById('f-div');
+  const allCheckbox = document.getElementById('f-div-all');
   const fCat = document.getElementById('f-cat');
-  if (fDiv) fDiv.value = '';
+  if (allCheckbox) {
+    allCheckbox.checked = true;
+    document.querySelectorAll('#f-div-options .form-check-input').forEach(ch => ch.checked = false);
+    updateDivisionFilterLabel();
+  }
   if (fCat) fCat.value = '';
   
   // Hide all tabs
@@ -734,11 +766,15 @@ function resetUI() {
   G.rankingInfo = null;
   document.getElementById('upload-err').classList.add('d-none');
   // clear dynamic division/cat filter options
-  ['f-div','f-cat'].forEach(id => {
-    const sel = document.getElementById(id);
-    sel.value = '';  // Reset selected value
-    while (sel.options.length > 1) sel.remove(1);
-  });
+  const allCheckbox = document.getElementById('f-div-all');
+  if (allCheckbox) {
+    allCheckbox.checked = true;
+  }
+  document.getElementById('f-div-options').innerHTML = '';
+  const fcat = document.getElementById('f-cat');
+  if (fcat) {
+    fcat.value = '';
+  }
   // Show tab buttons again
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('d-none'));
   // Switch back to the appropriate tab based on current mainTab
@@ -754,6 +790,22 @@ function resetUI() {
 function updateURLState(type, id) {
   const params = new URLSearchParams();
   params.set(type, id);
+
+  const selectedDivs = getSelectedDivisions();
+  if (selectedDivs.length) {
+    params.set('div', selectedDivs.join(','));
+  }
+
+  const fcat = document.getElementById('f-cat');
+  if (fcat && fcat.value) {
+    params.set('cat', fcat.value);
+  }
+
+  const fsearchEl = document.getElementById('f-search');
+  if (fsearchEl && fsearchEl.value.trim()) {
+    params.set('search', fsearchEl.value.trim());
+  }
+
   window.history.pushState({ type, id }, '', `${window.location.pathname}?${params.toString()}`);
   G.currentShareData = { type, id };
 }
@@ -808,13 +860,19 @@ function checkURLParameters() {
   const params = new URLSearchParams(window.location.search);
   const matchId = params.get('match');
   const rankingId = params.get('ranking');
-  
+  const divisions = params.get('div') ? params.get('div').split(',').filter(Boolean) : [];
+  const category = params.get('cat') || '';
+  const search = params.get('search') || '';
+
+  G.pendingURLParams = { divisions, category, search };
+
   if (matchId) {
     loadMatch(parseInt(matchId));
   } else if (rankingId) {
     loadRanking(parseInt(rankingId));
   }
 }
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    INIT RESULTS
@@ -842,13 +900,29 @@ function initResults(data) {
   // Podium
   renderPodium(data);
 
-  // Division filter
-  const fdiv = document.getElementById('f-div');
+  // Division filter (checkbox dropdown)
+  const fdivOptions = document.getElementById('f-div-options');
+  const allCheckbox = document.getElementById('f-div-all');
+  fdivOptions.innerHTML = '';
+  allCheckbox.checked = true;
+
   [...new Set(data.competitors.map(c => c.division))].sort().forEach(div => {
-    const opt = document.createElement('option');
-    opt.value = opt.textContent = div;
-    fdiv.appendChild(opt);
+    const divId = `f-div-${div.replace(/\s+/g, '-')}`;
+    const item = document.createElement('div');
+    item.className = 'form-check';
+    item.innerHTML = `
+      <input class="form-check-input" type="checkbox" id="${divId}" value="${div}" checked>
+      <label class="form-check-label" for="${divId}">${esc(div)}</label>
+    `;
+    fdivOptions.appendChild(item);
   });
+
+  // Make sure checkbox events work
+  const allInputs = fdivOptions.querySelectorAll('.form-check-input');
+  allCheckbox.addEventListener('change', () => applyDivisionFilterSelects(allCheckbox));
+  allInputs.forEach(ch => ch.addEventListener('change', () => applyDivisionFilterSelects(ch)));
+
+  updateDivisionFilterLabel();
 
   // Category filter
   const fcat = document.getElementById('f-cat');
@@ -860,8 +934,8 @@ function initResults(data) {
   });
 
   // Set filter onchange handlers to use applyFilters (not renderRankingTable)
-  fdiv.onchange = () => applyFilters();
-  fcat.onchange = () => applyFilters();
+  // fdiv is replaced by checkbox dropdown; event handlers are attached in init flow
+  if (fcat) fcat.onchange = () => applyFilters();
 
   // Stage buttons
   const sb = document.getElementById('stage-btns');
@@ -871,6 +945,12 @@ function initResults(data) {
 
   G.tab = 'overall';
   highlightTab('overall');
+
+  if (G.pendingURLParams) {
+    applyFiltersFromURL(G.pendingURLParams);
+    G.pendingURLParams = null;
+  }
+
   applyFilters();
   
   // Translate all dynamic elements
@@ -1016,16 +1096,28 @@ function initRankingResults(rankingData) {
   // Hide podium for rankings
   document.getElementById('podium-row').innerHTML = '';
 
-  // Populate division filter with default to Open
-  const fdiv = document.getElementById('f-div');
-  fdiv.innerHTML = `<option value="">— ${getTrans('filters.allDivisions')} —</option>`;
+  // Populate division filter with checkbox dropdown (domyślnie wszystkie zaznaczone)
+  const fdivOptions = document.getElementById('f-div-options');
+  const allCheckbox = document.getElementById('f-div-all');
+  fdivOptions.innerHTML = '';
+  allCheckbox.checked = true;
+
   [...new Set(merged.map(c => c.division))].sort().forEach(div => {
-    const opt = document.createElement('option');
-    opt.value = opt.textContent = div;
-    if (div === 'Open') opt.selected = true;
-    fdiv.appendChild(opt);
+    const divId = `f-div-${div.replace(/\s+/g, '-')}`;
+    const item = document.createElement('div');
+    item.className = 'form-check';
+    item.innerHTML = `
+      <input class="form-check-input" type="checkbox" id="${divId}" value="${div}" checked>
+      <label class="form-check-label" for="${divId}">${esc(div)}</label>
+    `;
+    fdivOptions.appendChild(item);
   });
-  fdiv.onchange = () => renderRankingTable();
+
+  const allInputs = fdivOptions.querySelectorAll('.form-check-input');
+  allCheckbox.addEventListener('change', () => applyDivisionFilterSelects(allCheckbox));
+  allInputs.forEach(ch => ch.addEventListener('change', () => applyDivisionFilterSelects(ch)));
+
+  updateDivisionFilterLabel();
 
   // Populate category filter with available categories
   const fcat = document.getElementById('f-cat');
@@ -1042,9 +1134,133 @@ function initRankingResults(rankingData) {
   // Hide tab bar for ranking
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.add('d-none'));
 
+  if (G.pendingURLParams) {
+    applyFiltersFromURL(G.pendingURLParams);
+    G.pendingURLParams = null;
+  }
+
   // Render ranking table
   renderRankingTable();
   show($results);
+}
+
+function getSelectedDivisions() {
+  const optionEls = document.querySelectorAll('#f-div-options .form-check-input');
+  const allCheckbox = document.getElementById('f-div-all');
+  if (allCheckbox && allCheckbox.checked) {
+    // all
+    return [];
+  }
+  const values = Array.from(optionEls)
+    .filter(ch => ch.checked)
+    .map(ch => ch.value);
+  return values;
+}
+
+function updateDivisionFilterLabel() {
+  const selected = getSelectedDivisions();
+  const labelEl = document.getElementById('f-div-label');
+  if (!labelEl) return;
+  if (selected.length === 0) {
+    labelEl.textContent = document.querySelector('[data-i18n="filters.allDivisions"]').textContent || 'Wszystkie dywizje';
+  } else if (selected.length === 1) {
+    labelEl.textContent = selected[0];
+  } else {
+    labelEl.textContent = `${selected.length} wybrane`;
+  }
+}
+
+function updateFilterClearButtons() {
+  const clearCategoryBtn = document.getElementById('clear-category-btn');
+  const clearAllBtn = document.getElementById('f-clear-all');
+  const fcat = document.getElementById('f-cat');
+  const fsearch = document.getElementById('f-search');
+  const allCheckbox = document.getElementById('f-div-all');
+
+  const categoryActive = fcat && fcat.value;
+  const searchActive = fsearch && fsearch.value.trim();
+  const divisionActive = allCheckbox && !allCheckbox.checked;
+
+  if (clearCategoryBtn) {
+    clearCategoryBtn.style.display = categoryActive ? '' : 'none';
+  }
+  if (clearAllBtn) {
+    clearAllBtn.style.display = (divisionActive || categoryActive || searchActive) ? '' : 'none';
+  }
+}
+
+function applyDivisionFilterSelects(sourceCheckbox) {
+  const allCheckbox = document.getElementById('f-div-all');
+  const optionEls = document.querySelectorAll('#f-div-options .form-check-input');
+
+  if (!allCheckbox || !optionEls.length) return;
+
+  if (sourceCheckbox === allCheckbox) {
+    optionEls.forEach(ch => ch.checked = false);
+  } else {
+    allCheckbox.checked = false;
+    const anyChecked = Array.from(optionEls).some(ch => ch.checked);
+    if (!anyChecked) allCheckbox.checked = true;
+  }
+
+  updateDivisionFilterLabel();
+  updateFilterClearButtons();
+  applyFilters();
+}
+
+function clearDivisionFilters(doApply = true) {
+  const allCheckbox = document.getElementById('f-div-all');
+  const optionEls = document.querySelectorAll('#f-div-options .form-check-input');
+  if (!allCheckbox) return;
+  allCheckbox.checked = true;
+  optionEls.forEach(ch => ch.checked = false);
+  updateDivisionFilterLabel();
+  updateFilterClearButtons();
+  if (doApply) applyFilters();
+}
+
+function clearCategoryFilter(doApply = true) {
+  const fcat = document.getElementById('f-cat');
+  if (!fcat) return;
+  fcat.value = '';
+  if (doApply) applyFilters();
+}
+
+function clearAllFilters() {
+  clearDivisionFilters(false);
+  clearCategoryFilter(false);
+  const fsearch = document.getElementById('f-search');
+  if (fsearch) {
+    fsearch.value = '';
+  }
+  updateFilterClearButtons();
+  applyFilters();
+}
+
+function applyFiltersFromURL({ divisions, category, search }) {
+  if (Array.isArray(divisions) && divisions.length) {
+    const allCheckbox = document.getElementById('f-div-all');
+    const optionEls = document.querySelectorAll('#f-div-options .form-check-input');
+    if (allCheckbox) allCheckbox.checked = false;
+    optionEls.forEach(ch => {
+      ch.checked = divisions.includes(ch.value);
+    });
+    const anyChecked = Array.from(optionEls).some(ch => ch.checked);
+    if (!anyChecked && allCheckbox) allCheckbox.checked = true;
+    updateDivisionFilterLabel();
+  }
+
+  const fcat = document.getElementById('f-cat');
+  if (fcat && category) {
+    fcat.value = category;
+  }
+
+  const fsearch = document.getElementById('f-search');
+  if (fsearch) {
+    fsearch.value = search || '';
+  }
+
+  applyFilters();
 }
 
 function renderRankingTable() {
@@ -1055,14 +1271,14 @@ function renderRankingTable() {
   }
   
   // Get selected division and category
-  const selectedDiv = document.getElementById('f-div').value;
+  const selectedDivs = getSelectedDivisions();
   const selectedCat = document.getElementById('f-cat').value;
   
   // Filter by division and category
   // IMPORTANT: If category selected, only include competitors who competed in that category
   let filtered = G.data;
-  if (selectedDiv) {
-    filtered = filtered.filter(c => c.division === selectedDiv);
+  if (selectedDivs.length) {
+    filtered = filtered.filter(c => selectedDivs.includes(c.division));
   }
   if (selectedCat) {
     filtered = filtered.filter(c => c.categories && c.categories[selectedCat]);
@@ -1086,8 +1302,8 @@ function renderRankingTable() {
           .filter(comp => comp.categories && comp.categories[selectedCat] && !comp.is_disq);
         
         // Also filter by division if selected
-        if (selectedDiv) {
-          matchCompetitors = matchCompetitors.filter(comp => comp.division === selectedDiv);
+        if (selectedDivs.length) {
+          matchCompetitors = matchCompetitors.filter(comp => selectedDivs.includes(comp.division));
         }
         
         matchCompetitors = matchCompetitors
@@ -1186,6 +1402,10 @@ function renderRankingTable() {
   
   // Translate all dynamic elements
   updateUIText();
+
+  if (G.currentShareData && G.currentShareData.type && G.currentShareData.id) {
+    updateURLState(G.currentShareData.type, G.currentShareData.id);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1223,11 +1443,11 @@ function renderPodium(data) {
 function getFiltered() {
   const searchEl = document.getElementById('f-search');
   const s   = searchEl ? searchEl.value.toLowerCase() : '';
-  const div = document.getElementById('f-div').value;
+  const divs = getSelectedDivisions();
   const cat = document.getElementById('f-cat').value;
   return G.data.competitors.filter(c =>
-    (!s   || c.name.toLowerCase().includes(s)) &&
-    (!div || c.division === div) &&
+    (!s || c.name.toLowerCase().includes(s)) &&
+    (!divs.length || divs.includes(c.division)) &&
     (!cat || c.category === cat)
   );
 }
@@ -1253,14 +1473,21 @@ function applyFilters() {
         ? `${filtered.length} ${getTrans('results.competitors')}`
         : `${filtered.length} / ${G.data.competitors.length}`;
 
-    const divFilter = document.getElementById('f-div').value;
-    if (divFilter && G.sort.col === 'rank') { G.sort.col = 'div_rank'; G.sort.dir = 'asc'; }
-    if (!divFilter && G.sort.col === 'div_rank') { G.sort.col = 'rank'; G.sort.dir = 'asc'; }
+    const selectedDivs = getSelectedDivisions();
+    const singleDivision = selectedDivs.length === 1;
+    if (singleDivision && G.sort.col === 'rank') { G.sort.col = 'div_rank'; G.sort.dir = 'asc'; }
+    if (!singleDivision && G.sort.col === 'div_rank') { G.sort.col = 'rank'; G.sort.dir = 'asc'; }
 
     if (G.tab === 'overall')   renderOverall(filtered);
     if (G.tab === 'divisions') renderDivisions(filtered);
     if (G.tab === 'stages')    renderStage(G.stageIdx, filtered);
+
+    if (G.currentShareData && G.currentShareData.type && G.currentShareData.id) {
+      updateURLState(G.currentShareData.type, G.currentShareData.id);
+    }
   }
+
+  updateFilterClearButtons();
 }
 
 function doSort(col) {
@@ -1307,11 +1534,11 @@ function sortArrow(col) {
 
 function renderOverall(list) {
   // Czy aktywne są filtry?
-  const divFilter = document.getElementById('f-div').value;
+  const divFilter = getSelectedDivisions();
   const catFilter = document.getElementById('f-cat').value;
 
   // Gdy filtr dywizji aktywny → punkty per-division; bez filtra → globalne
-  let ptsField = divFilter ? 'total_points_in_division' : 'total_points_overall';
+  let ptsField = divFilter.length ? 'total_points_in_division' : 'total_points_overall';
   let getPoints = c => c[ptsField] ?? c.total_points;
 
   // Jeśli filtr kategorii aktywny, oblicz percentages na bazie kategorii
@@ -1324,7 +1551,7 @@ function renderOverall(list) {
       let categoryComps = G.data.competitors
         .filter(comp => comp.category === catFilter && comp.division === c.division && !comp.is_disq);
       
-      if (!divFilter) {
+      if (!divFilter.length) {
         categoryComps = G.data.competitors.filter(comp => comp.category === catFilter && !comp.is_disq);
       }
       
@@ -1341,9 +1568,9 @@ function renderOverall(list) {
     });
   }
 
-  // Miejsce w dywizji — buduj PRZED sorted() żeby można sortować wg div_rank
+  // Miejsce w dywizji — buduj PRZED sorted() żeby można sortować wg div_rank (tylko dla jednej dywizji)
   const divRankMap = {};
-  if (divFilter) {
+  if (divFilter.length === 1) {
     const activeSorted = [...list.filter(c => !c.is_disq)].sort((a,b) => getPoints(b) - getPoints(a));
     activeSorted.forEach((c, i) => { divRankMap[c.comp_id] = i + 1; });
   }
@@ -1351,8 +1578,8 @@ function renderOverall(list) {
   let data = sorted(list, divRankMap);
 
   // Przefiltruj dane na dywizję jeśli jest aktywny filtr
-  if (divFilter) {
-    data = data.filter(c => c.division === divFilter);
+  if (divFilter.length) {
+    data = data.filter(c => divFilter.includes(c.division));
   }
 
   // Najlepsze punkty w aktualnie filtrowanej liście (do obliczenia % lidera)
@@ -1444,8 +1671,8 @@ function toggleDetail(row, compId) {
 
   const detail = document.createElement('tr');
   detail.className = 'tr-detail stage-sub';
-  const divFilter = document.getElementById('f-div').value;
-  const totalCols = 9 + (divFilter ? 1 : 0) + 1;
+  const divFilter = getSelectedDivisions();
+  const totalCols = 9 + (divFilter.length ? 1 : 0) + 1;
   detail.innerHTML = `<td colspan="${totalCols}">
     <div style="padding:8px 12px">
       <table class="table table-sm table-bordered mb-0" style="font-size:.8rem">
