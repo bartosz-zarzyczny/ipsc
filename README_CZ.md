@@ -14,6 +14,7 @@ Nástroj pro extrakci a prohlížení výsledků střeleckých soutěží IPSC z
 ├── database.py                   # Vrstva databáze (ORM)
 ├── docker-compose.yml            # Konfigurace Docker Compose
 ├── Dockerfile                    # Specifikace kontejneru
+├── static/i18n/                  # Soubory překladů (multilingvální podpora)
 └── templates/
     ├── index.html                # Frontend (prohlížeč výsledků)
     ├── admin.html                # Panel správce (soutěže + žebříčky + uživatelé)
@@ -163,16 +164,40 @@ Uživatelské účty se ukládají v databázi SQLite s šifrováním SHA-256.
 
 ### Hlavní stránka – prohlížeč výsledků
 
-- **Výběr soutěže** – seznam uložených soutěží; kliknutí načte výsledky
+#### Základní funkce
+- **Výběr soutěže** – seznam uložených soutěží v databázi; kliknutí načte výsledky
 - **Záhlaví soutěže** – název, datum, úroveň (L1/L2/L3), počet etap a účastníků
 - **Podium** – karty prvních 3 s Hit Factor / body / čas
-- **Celkový přehled** – tříditelná tabulka všech účastníků; kliknutí na řádek rozbalí detaily etapy
+- **Celkový přehled** – tříditelna tabulka všech účastníků; kliknutí na řádek rozbalí detaily etapy
 - **Karta divize** – samostatné tabulky na divizi s žebříčkem a % k vedoucímu divize
 - **Karta etapy** – žebřík na vybrané etapě s barevnými sloupci střelby
-- **Filtry** – vyhledávání podle jména, filtr podle divize, filtr podle kategorie (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
-- **Přepočet procent** – když je kategorie filtrována, procenta se automaticky přepočítají na 100% pro vedoucího této kategorie v dané divizi
-- **Export CSV** – generován na straně klienta, otevřený v Excelu (UTF-8 s BOM)
-- **Odkaz na panel** – tlačítko v horním rohu vede na `/admin`
+
+#### Nové funkce
+
+**🌐 Multilingvální podpora**
+- Výběr jazyka v horním pravém rohu (PL, EN, DE, FR, CZ)
+- Automatický překlad rozhraní
+- Jazykové soubory ve složce `static/i18n/`
+
+**🔍 Pokročilé filtrování**
+- **Vyhledávání** – podle příjmení nebo jména soutěžícího
+- **Filtr divize** – možnost výběru jedné nebo více divizí současně
+- **Filtr kategorie** – Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady
+- **Rozsah** – filtry fungují na všech kartách (Celkový, Divize, Etapy)
+- **Automatický přepočet** – procenta přepočítaná pro filtroavané skupiny
+
+**📊 Export výsledků**
+- **📄 PDF Export** – nová funkcionalita generování výsledků v PDF
+  - Oddělení podle divizí (každá divize na samostatné stránce)
+  - Barevná záhlaví divizí (Open-červená, Standard-modrá, Modified-zelená)
+  - Krajinná orientace pro lepší čitelnost
+- Výraznění míst 1-3 (zlatá/stříbrná/bronzová)
+  - Podpora jak pro individuální soutěže, tak i žebříčky
+- **📊 CSV Export** – generován na straně klienta, otevřený v Excelu (UTF-8 s BOM)
+
+**🎨 Barvení divizí**
+- Standardní IPSC barvy pro divize v celém rozhraní
+- Vizuální rozlišení divizí v tabulkách a záhlavích
 
 ### Panel správce
 
@@ -196,12 +221,47 @@ Dostupný na `/admin` – vyžaduje přihlášení.
 - **Smazání žebříčku** – možné pouze pokud žebřík nemá soutěže
 - **Seznam žebříčků** – přehled jmen a přiřazení
 
+#### ⚙️ Karta: Mapování Divizí (NOVÉ!)
+
+Nová funkcionalita umožňující mapování importovaných názvů divizí na standardní IPSC divize.
+
+**Funkce:**
+- **Výběr soutěže** – selektor soutěží pro mapování divizí
+- **Automatická detekce** – systém automaticky sbírá všechny jedinečné názvy divizí z importovaných soutěží
+- **Mapování na standardy** – možnost přiřazení každé importované divize k jedné ze standardních IPSC divizí
+- **Kopírování mapování** – možnost zkopírování všech mapování z jedné soutěže do druhé
+- **Standardní divize** podporované:
+  - **Pistole:** Open, Standard, Standard Manual, Modified, Classic, Revolver, Optics
+  - **Pušky:** Mini Rifle, Production, Production Optics, PCC Optics, PCC Standard
+  - **Brok:** Karabin Open, Karabin Standard
+  - **Specializované:** PC Optic
+
+**API koncové body:**
+- `GET /admin/api/divisions-mapping` – získat mapování pro soutěže
+- `POST /admin/api/divisions-mapping` – uložit/smazat mapování divize
+- `POST /admin/api/divisions-mapping/copy` – kopírovat mapování mezi soutěžemí
+
+**Výhody:**
+- Sjednocení názvů divizí mezi různými soutěžemí
+- Lepší správa mezisoutěžních žebříčků
+- Automatické používání mapování ve výsledcích a žebříčcích
+
 #### Karta: Uživatelé
 - **Změna hesla** – formulář pro změnu hesla přihlášeného uživatele
 - **Správa uživatelů** – tabulka všech uživatelů
   - Vytvoření nového uživatele
   - Smazání uživatele (ochrana – poslední uživatel se nemůže smazat)
+---
 
+## Poslední aktualizace (2026)
+
+### v2.4 - Mapování Divizí a PDF Export
+- ✅ **PDF Export** – export výsledků do PDF s oddělením podle divizí
+- ✅ **Mapování Divizí** – inteligentní mapování importovaných divizí na IPSC standardy
+- ✅ **Multilingvální podpora** – podpora 5 jazyků (PL, EN, DE, FR, CZ)
+- ✅ **Barvení divizí** – standardní IPSC barvy v rozhraní
+- ✅ **Pokročilé filtrování** – multi-select filtry pro divize a kategorie
+- ✅ **Automatický přepočet** – procenta pro filtroavané skupiny
 ## Multilingvální podpora
 
 Aplikace podporuje dynamickou změnu jazyka bez obnovení stránky. Dostupné jazyky:

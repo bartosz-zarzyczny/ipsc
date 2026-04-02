@@ -14,6 +14,7 @@ Un outil pour extraire et afficher les résultats des compétitions de tir IPSC 
 ├── database.py                   # Couche de base de données (ORM)
 ├── docker-compose.yml            # Configuration Docker Compose
 ├── Dockerfile                    # Spécification du conteneur
+├── static/i18n/                  # Fichiers de traduction (support multilingue)
 └── templates/
     ├── index.html                # Frontend (navigateur de résultats)
     ├── admin.html                # Panneau d'administration (compétitions + classements + utilisateurs)
@@ -163,16 +164,40 @@ Les comptes d'utilisateur sont stockés dans la base de données SQLite avec hac
 
 ### Page d'accueil – Navigateur de résultats
 
-- **Sélection de compétition** – liste des compétitions enregistrées ; clic pour charger les résultats
+#### Fonctionnalités de base
+- **Sélection de compétition** – liste des compétitions enregistrées dans la base de données ; clic charge les résultats
 - **En-tête de compétition** – nom, date, niveau (L1/L2/L3), nombre d'étapes et participants
 - **Podium** – cartes des 3 premiers avec Hit Factor / points / temps
-- **Vue d'ensemble générale** – tableau triable de tous les participants
-- **Onglet Divisions** – tableaux séparés par division avec classement
-- **Onglet Étapes** – classement sur l'étape sélectionnée
-- **Filtres** – recherche par nom, filtre par division, filtre par catégorie (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
-- **Recalcul des pourcentages** – quand la catégorie est filtrée, les pourcentages sont automatiquement recalculés à 100% pour le leader de cette catégorie
-- **Export CSV** – généré côté client, ouvert dans Excel (UTF-8 avec BOM)
-- **Lien vers le panneau** – bouton dans le coin supérieur menant à `/admin`
+- **Vue d'ensemble générale** – tableau triable de tous les participants ; clic sur une ligne développe les détails d'étape
+- **Onglet Divisions** – tableaux séparés par division avec classement et % du leader de division
+- **Onglet Étapes** – classement sur l'étape sélectionnée avec colonnes de tirs colorées
+
+#### Nouvelles fonctionnalités
+
+**🌐 Support multilingue**
+- Sélecteur de langue dans le coin supérieur droit (PL, EN, DE, FR, CZ)
+- Traduction automatique de l'interface
+- Fichiers de langue dans le dossier `static/i18n/`
+
+**🔍 Filtrage avancé**
+- **Recherche** – par nom de famille ou prénom du compétiteur
+- **Filtre par division** – possibilité de sélectionner une ou plusieurs divisions simultanément
+- **Filtre par catégorie** – Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady
+- **Portée** – les filtres fonctionnent sur tous les onglets (Général, Divisions, Étapes)
+- **Recalcul automatique** – pourcentages recalculés pour les groupes filtrés
+
+**📊 Export des résultats**
+- **📄 Export PDF** – nouvelle fonctionnalité de génération de résultats en PDF
+  - Séparation par divisions (chaque division sur une page séparée)
+  - En-têtes de division colorés (Open-rouge, Standard-bleu, Modified-vert)
+  - Orientation paysage pour une meilleure lisibilité
+  - Mise en évidence des places 1-3 (or/argent/bronze)
+  - Support pour les compétitions individuelles et les classements
+- **📊 Export CSV** – généré côté client, ouvert dans Excel (UTF-8 avec BOM)
+
+**🎨 Coloration des divisions**
+- Couleurs IPSC standard pour les divisions dans toute l'interface
+- Distinction visuelle des divisions dans les tableaux et en-têtes
 
 ### Panneau d'administration
 
@@ -196,12 +221,47 @@ Disponible sur `/admin` – nécessite une connexion.
 - **Supprimer classement** – possible uniquement si le classement n'a pas de compétitions
 - **Liste des classements** – aperçu des noms et des affectations
 
+#### ⚙️ Onglet: Mappage des Divisions (NOUVEAU!)
+
+Nouvelle fonctionnalité permettant de mapper les noms de divisions importés vers les divisions IPSC standard.
+
+**Fonctionnalités:**
+- **Sélection de compétition** – sélecteur de compétitions pour mapper les divisions
+- **Détection automatique** – le système collecte automatiquement tous les noms de divisions uniques des compétitions importées
+- **Mappage vers les standards** – possibilité d'assigner chaque division importée à l'une des divisions IPSC standard
+- **Copie des mappages** – possibilité de copier tous les mappages d'une compétition à une autre
+- **Divisions standard** supportées:
+  - **Pistolets:** Open, Standard, Standard Manual, Modified, Classic, Revolver, Optics
+  - **Fusils:** Mini Rifle, Production, Production Optics, PCC Optics, PCC Standard
+  - **Fusil de chasse:** Karabin Open, Karabin Standard
+  - **Spécialisé:** PC Optic
+
+**Points de terminaison API:**
+- `GET /admin/api/divisions-mapping` – obtenir les mappages pour les compétitions
+- `POST /admin/api/divisions-mapping` – sauvegarder/supprimer le mappage de division
+- `POST /admin/api/divisions-mapping/copy` – copier les mappages entre compétitions
+
+**Avantages:**
+- Standardisation des noms de divisions entre différentes compétitions
+- Meilleure gestion des classements inter-compétitions
+- Application automatique des mappages dans les résultats et classements
+
 #### Onglet: Utilisateurs
 - **Changer le mot de passe** – formulaire pour modifier le mot de passe de l'utilisateur connecté
 - **Gérer les utilisateurs** – tableau de tous les utilisateurs
   - Créer un nouvel utilisateur
   - Supprimer un utilisateur (protection – ne peut pas supprimer le dernier utilisateur)
+---
 
+## Dernières mises à jour (2026)
+
+### v2.4 - Mappage des Divisions et Export PDF
+- ✅ **Export PDF** – export des résultats en PDF avec séparation par divisions
+- ✅ **Mappage des Divisions** – mappage intelligent des divisions importées vers les standards IPSC
+- ✅ **Support multilingue** – support de 5 langues (PL, EN, DE, FR, CZ)
+- ✅ **Coloration des divisions** – couleurs IPSC standard dans l'interface
+- ✅ **Filtrage avancé** – filtres multi-sélection pour divisions et catégories
+- ✅ **Recalcul automatique** – pourcentages pour groupes filtrés
 ## Support multilingue
 
 L'application prend en charge le changement dynamique de langue sans rechargement de page. Langues disponibles:

@@ -14,6 +14,7 @@ A tool for extracting and viewing IPSC shooting competition results from WinMSS 
 ├── database.py                   # Database layer (ORM)
 ├── docker-compose.yml            # Docker Compose configuration
 ├── Dockerfile                    # Container specification
+├── static/i18n/                  # Translation files (multilingual support)
 └── templates/
     ├── index.html                # Frontend (results browser)
     ├── admin.html                # Admin panel (competitions + rankings + users)
@@ -163,16 +164,40 @@ User accounts are stored in SQLite database with SHA-256 hashing.
 
 ### Main Page — Results Browser
 
+#### Basic Features
 - **Competition Selection** — list of saved competitions in database; clicking loads results
 - **Competition Header** — name, date, level (L1/L2/L3), number of stages and competitors
 - **Podium** — cards of top 3 with Hit Factor / points / time
 - **Overall Summary** — sortable table of all competitors; clicking row expands stage details (A/B/C/D/M/PE, HF, % in division)
 - **Divisions Tab** — separate tables per division with ranking and % to division leader
 - **Stages Tab** — ranking on selected stage with colored shot columns; percentages calculated within division
-- **Filters** — search by last name, filter by division, filter by category (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady); filters work on all tabs including stages
-- **Recalculation of percentages** — when category filtered, percentages automatically recalculated to 100% for the leader of that category in the given division
-- **CSV Export** — generated client-side, openable in Excel (UTF-8 with BOM)
-- **Admin Link** — button in top corner links to `/admin`
+
+#### New Features
+
+**🌐 Multilingual Support**
+- Language selector in top-right corner (PL, EN, DE, FR, CZ)
+- Automatic interface translation
+- Language files in `static/i18n/` folder
+
+**🔍 Advanced Filtering**
+- **Search** — by competitor's last name or first name
+- **Division Filter** — ability to select one or multiple divisions simultaneously
+- **Category Filter** — Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady
+- **Scope** — filters work on all tabs (Overall, Divisions, Stages)
+- **Automatic Recalculation** — percentages recalculated for filtered groups
+
+**📊 Results Export**
+- **📄 PDF Export** — new functionality for generating results in PDF
+  - Division-based separation (each division on separate page)
+  - Colored division headers (Open-red, Standard-blue, Modified-green)
+  - Landscape orientation for better readability
+  - Highlighting of places 1-3 (gold/silver/bronze)
+  - Support for both individual competitions and rankings
+- **📊 CSV Export** — generated client-side, openable in Excel (UTF-8 with BOM)
+
+**🎨 Division Coloring**
+- Standard IPSC colors for divisions throughout the interface
+- Visual distinction of divisions in tables and headers
 
 ### Admin Panel
 
@@ -196,11 +221,33 @@ Available at `/admin` — requires login.
 - **Delete ranking** — available only when the ranking has no assigned competitions
 - **Rankings list** — overview of names, competition counts, and full assignments
 
+#### ⚙️ Tab: Division Mapping (NEW!)
+
+New functionality allowing mapping of imported division names to standard IPSC divisions.
+
+**Features:**
+- **Competition Selection** — selector for competitions to map divisions
+- **Automatic Detection** — system automatically collects all unique division names from imported competitions
+- **Mapping to Standards** — ability to assign each imported division to one of the standard IPSC divisions
+- **Copying Mappings** — ability to copy all mappings from one competition to another
+- **Standard Divisions** supported:
+  - **Pistols:** Open, Standard, Standard Manual, Modified, Classic, Revolver, Optics
+  - **Rifles:** Mini Rifle, Production, Production Optics, PCC Optics, PCC Standard
+  - **Shotgun:** Karabin Open, Karabin Standard
+  - **Specialized:** PC Optic
+
+**API endpoints:**
+- `GET /admin/api/divisions-mapping` — get mappings for competitions
+- `POST /admin/api/divisions-mapping` — save/delete division mapping
+- `POST /admin/api/divisions-mapping/copy` — copy mappings between competitions
+
+**Benefits:**
+- Standardization of division names between different competitions
+- Better management of inter-competition rankings
+- Automatic application of mappings in results and rankings
+
 #### Tab: Users
 - **Change Password** — form to change logged-in user's password (requires old password)
-- **Manage Users** — table of all users with "You" label for logged-in user
-  - Create new user (login + password)
-  - Delete user (protection — cannot delete last user)
 
 ### Competitor Data
 
@@ -298,6 +345,48 @@ CREATE TABLE ranking_matches (
 - **ranking_id** — reference to `rankings`
 - **match_id** — reference to `matches`
 - **created_at** — assignment timestamp
+
+### New Tables for Division Mapping
+
+```sql
+CREATE TABLE division_mappings (
+    id INTEGER PRIMARY KEY,
+    match_id INTEGER NOT NULL,
+    source_division TEXT NOT NULL,
+    mapped_division_id TEXT,
+    mapped_division_color TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (match_id) REFERENCES matches (id) ON DELETE CASCADE,
+    UNIQUE(match_id, source_division)
+)
+```
+
+**Fields of `division_mappings` table:**
+- **match_id** — ID of competition for which mapping is applied
+- **source_division** — original division name from import
+- **mapped_division_id** — ID of standard IPSC division
+- **mapped_division_color** — division color (hex)
+
+### Division Mapping Management Functions
+
+- `get_division_mapping(match_id, source_division)` — get mapping for division
+- `set_division_mapping(match_id, source_division, mapped_id, color)` — set mapping
+- `get_all_division_mappings(match_id)` — get all mappings for competition
+- `copy_division_mappings(source_match_id, target_match_id)` — copy mappings
+- `apply_division_mappings(data, match_id)` — apply mappings to result data
+
+---
+
+## Latest Updates (2026)
+
+### v2.4 - Division Mapping and PDF Export
+- ✅ **PDF Export** — export results to PDF with division separation
+- ✅ **Division Mapping** — intelligent mapping of imported divisions to IPSC standards
+- ✅ **Multilingual Support** — support for 5 languages (PL, EN, DE, FR, CZ)
+- ✅ **Division Coloring** — standard IPSC colors in interface
+- ✅ **Advanced Filtering** — multi-select filters for divisions and categories
+- ✅ **Automatic Recalculation** — percentages for filtered groups
 
 ### Table: `users`
 

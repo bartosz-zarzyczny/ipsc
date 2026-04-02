@@ -14,6 +14,7 @@ Ein Tool zum Extrahieren und Anzeigen von IPSC-Schießwettkampfergebnissen aus W
 ├── database.py                   # Datenbankebene (ORM)
 ├── docker-compose.yml            # Docker Compose-Konfiguration
 ├── Dockerfile                    # Container-Spezifikation
+├── static/i18n/                  # Übersetzungsdateien (Mehrsprachigkeit)
 └── templates/
     ├── index.html                # Frontend (Ergebnisanzeige)
     ├── admin.html                # Admin-Panel (Wettkämpfe + Rankings + Benutzer)
@@ -163,16 +164,40 @@ Benutzerkonten werden in der SQLite-Datenbank mit SHA-256-Hashing gespeichert.
 
 ### Hauptseite – Ergebnisanzeige
 
-- **Wettkampfauswahl** – Liste gespeicherter Wettkämpfe; Klick lädt Ergebnisse
+#### Grundfunktionen
+- **Wettkampfauswahl** – Liste gespeicherter Wettkämpfe in der Datenbank; Klick lädt Ergebnisse
 - **Wettkampfkopf** – Name, Datum, Ebene (L1/L2/L3), Anzahl Stationen und Teilnehmer
 - **Podium** – Karten der Top 3 mit Hit Factor / Punkten / Zeit
 - **Gesamtübersicht** – Sortierbare Tabelle aller Teilnehmer; Klick auf Zeile erweitert Stationsdetails
 - **Abteilungen-Tab** – Separate Tabellen pro Abteilung mit Ranking und % zum Abteilungsleiter
 - **Stationen-Tab** – Ranking auf ausgewählter Station mit farbigen Schusskolonnen
-- **Filter** – Suche nach Name, Filter nach Abteilung, Filter nach Kategorie (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady); Filter funktionieren auf allen Registerkarten einschließlich Bühnen
-- **Neuberechnung von Prozentsätzen** – Wenn Kategorie gefiltert wird, werden Prozentsätze automatisch auf 100% für den Anführer dieser Kategorie in der jeweiligen Abteilung neu berechnet
-- **CSV-Export** – Clientseitig generiert, in Excel öffnbar (UTF-8 mit BOM)
-- **Admin-Link** – Schaltfläche in der oberen Ecke führt zu `/admin`
+
+#### Neue Funktionen
+
+**🌐 Mehrsprachige Unterstützung**
+- Sprachauswahl in der oberen rechten Ecke (PL, EN, DE, FR, CZ)
+- Automatische Interface-Übersetzung
+- Sprachdateien im Ordner `static/i18n/`
+
+**🔍 Erweiterte Filterung**
+- **Suche** – nach Nachnamen oder Vornamen des Teilnehmers
+- **Divisionsfilter** – Möglichkeit, eine oder mehrere Divisionen gleichzeitig auszuwählen
+- **Kategoriefilter** – Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady
+- **Anwendungsbereich** – Filter funktionieren auf allen Tabs (Gesamt, Divisionen, Stationen)
+- **Automatische Neuberechnung** – Prozentsätze werden für gefilterte Gruppen neu berechnet
+
+**📊 Ergebnisse Export**
+- **📄 PDF Export** – neue Funktionalität zur Generierung von Ergebnissen in PDF
+  - Aufteilung nach Divisionen (jede Division auf separater Seite)
+  - Farbige Divisionskopfzeilen (Open-rot, Standard-blau, Modified-grün)
+  - Querformat für bessere Lesbarkeit
+  - Hervorhebung der Plätze 1-3 (gold/silber/bronze)
+  - Unterstützung sowohl für Einzelwettkämpfe als auch Rankings
+- **📊 CSV Export** – Client-seitig generiert, in Excel öffenbar (UTF-8 mit BOM)
+
+**🎨 Divisions-Farbgebung**
+- Standard IPSC-Farben für Divisionen im gesamten Interface
+- Visuelle Unterscheidung der Divisionen in Tabellen und Kopfzeilen
 
 ### Admin-Panel
 
@@ -196,12 +221,47 @@ Verfügbar unter `/admin` – erfordert Anmeldung.
 - **Ranking löschen** – Nur möglich, wenn das Ranking keine Wettkämpfe hat
 - **Rankings-Liste** – Übersicht von Namen und Zuordnungen
 
+#### ⚙️ Tab: Divisions-Mapping (NEU!)
+
+Neue Funktionalität zur Zuordnung importierter Divisionsnamen zu Standard-IPSC-Divisionen.
+
+**Funktionen:**
+- **Wettkampfauswahl** – Selektor für Wettkämpfe zur Divisions-Zuordnung
+- **Automatische Erkennung** – System sammelt automatisch alle eindeutigen Divisionsnamen aus importierten Wettkämpfen
+- **Zuordnung zu Standards** – Möglichkeit, jede importierte Division einer der Standard-IPSC-Divisionen zuzuordnen
+- **Zuordnungen kopieren** – Möglichkeit, alle Zuordnungen von einem Wettkampf zu einem anderen zu kopieren
+- **Standard-Divisionen** unterstützt:
+  - **Pistolen:** Open, Standard, Standard Manual, Modified, Classic, Revolver, Optics
+  - **Gewehre:** Mini Rifle, Production, Production Optics, PCC Optics, PCC Standard
+  - **Schrotflinte:** Karabin Open, Karabin Standard
+  - **Spezialisiert:** PC Optic
+
+**API-Endpunkte:**
+- `GET /admin/api/divisions-mapping` – Zuordnungen für Wettkämpfe abrufen
+- `POST /admin/api/divisions-mapping` – Divisionszuordnung speichern/löschen
+- `POST /admin/api/divisions-mapping/copy` – Zuordnungen zwischen Wettkämpfen kopieren
+
+**Vorteile:**
+- Vereinheitlichung der Divisionsnamen zwischen verschiedenen Wettkämpfen
+- Besseres Management von wettkampfübergreifenden Rankings
+- Automatische Anwendung von Zuordnungen in Ergebnissen und Rankings
+
 #### Tab: Benutzer
 - **Passwort ändern** – Formular zum Ändern des Passworts
 - **Benutzer verwalten** – Tabelle aller Benutzer
   - Neuen Benutzer erstellen
   - Benutzer löschen (Schutz – letzten Benutzer nicht löschen)
+---
 
+## Neueste Aktualisierungen (2026)
+
+### v2.4 - Divisions-Mapping und PDF Export
+- ✅ **PDF Export** – Export von Ergebnissen in PDF mit Aufteilung nach Divisionen
+- ✅ **Divisions-Mapping** – intelligente Zuordnung importierter Divisionen zu IPSC-Standards
+- ✅ **Mehrsprachigkeit** – Unterstützung für 5 Sprachen (PL, EN, DE, FR, CZ)
+- ✅ **Divisions-Farbgebung** – Standard IPSC-Farben im Interface
+- ✅ **Erweiterte Filterung** – Multi-Select-Filter für Divisionen und Kategorien
+- ✅ **Automatische Neuberechnung** – Prozentsätze für gefilterte Gruppen
 ## Mehrsprachigkeit
 
 Die Anwendung unterstützt die dynamische Sprachänderung ohne Neuladen der Seite. Verfügbare Sprachen:

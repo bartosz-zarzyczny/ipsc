@@ -14,6 +14,315 @@ Narzędzie do wyciągania i przeglądania wyników zawodów strzeleckich IPSC z 
 ├── database.py                   # Warstwa bazy danych (ORM)
 ├── docker-compose.yml            # Konfiguracja Docker Compose
 ├── Dockerfile                    # Specyfikacja kontenera
+├── static/i18n/                  # Pliki tłumaczeń (wielojęzyczność)
+└── templates/
+    ├── index.html                # Frontend (przeglądarka wyników)
+    ├── admin.html                # Panel administracyjny (zawody + ranking + użytkownicy)
+    └── admin_login.html          # Formularz logowania
+```
+
+## Wymagania
+
+- **Python 3.9+**
+- **Flask** — `pip install flask`
+- **cabextract** — do rozpakowywania plików `.cab`
+  ```bash
+  brew install cabextract   # macOS
+  ```
+
+## Uruchomienie
+
+### Lokalnie (bez Docker)
+
+```bash
+python3 app.py
+# → przeglądarka otworzy się na http://localhost:5000
+```
+
+### W kontenerze Docker
+
+#### Opcja 1: Docker Compose (zalecane)
+
+```bash
+# Instancja domyślna – port 3001, domyślna nazwa kontenera
+docker-compose up --build
+
+# Lub w tle
+docker-compose up -d
+```
+
+**Uruchomienie wielu instancji na jednym VPSie:**
+
+Aby uniknąć konfliktów między instancjami, użyj flagi `-p` (project-name). Każdy projekt musi mieć unikalną nazwę:
+
+```bash
+# Instancja 1 – port 3001, projekt ipsc1
+CONTAINER_NAME=ipsc-app-1 PORT=3001 docker-compose -p ipsc1 up -d
+
+# Instancja 2 – port 3002, projekt ipsc2
+CONTAINER_NAME=ipsc-app-2 PORT=3002 docker-compose -p ipsc2 up -d
+
+# Instancja 3 – port 3003, projekt ipsc3
+CONTAINER_NAME=ipsc-app-3 PORT=3003 docker-compose -p ipsc3 up -d
+```
+
+**Zarządzanie instancjami:**
+
+```bash
+# Wyświetl wszystkie uruchomione kontenery
+docker ps
+
+# Zatrzymaj konkretną instancję
+docker-compose -p ipsc1 down
+
+# Podgląd logów instancji
+docker-compose -p ipsc1 logs -f
+
+# Restartuj konkretną instancję
+docker-compose -p ipsc1 restart
+```
+
+**Pourczenie flagi `-p`:**
+
+Flaga `-p` izoluje każdy projekt z jego kontenerami, sieciami i wolumenami. Bez niej wszystkie instancje dzielą ten sam project-name, co prowadzi do konfliktów i uniemożliwia uruchomienie wielu instancji jednocześnie.
+
+Każda instancja automatycznie utworzy:
+- Unikalny `config.json` (ID instancji)
+- Unikalną bazę danych (`data/{instance_id}.db`)
+- Oddzielne dane bez konfliktów
+
+Baza danych (`{instance_id}.db`) będzie przechowywana w katalogu `./data/` na hoście i **persysty pomiędzy restartami**.
+
+#### Opcja 2: Docker bezpośrednio
+
+```bash
+# Budowanie obrazu
+docker build -t ipsc:latest .
+
+# Uruchamianie kontenera
+docker run -d \
+  --name ipsc-app \
+  -p 3001:5000 \
+  -v $(pwd)/data:/app/data \
+  ipsc:latest
+
+# Zatrzymanie
+docker stop ipsc-app
+docker rm ipsc-app
+```
+
+#### Zmienne środowiskowe
+
+W `docker-compose.yml` można dostosować:
+
+| Zmienna | Opis | Domyślnie |
+|---------|------|----------|
+| `PORT` | Port hosta do mapowania | `3001` |
+| `CONTAINER_NAME` | Nazwa kontenera Docker | `ipsc-app` |
+| `SECRET_KEY` | Klucz sesji Flask (SHA-256) | `default-secret-key-change-me` |
+
+**Przykład:**
+```bash
+CONTAINER_NAME=my-app PORT=8080 SECRET_KEY="moj-super-tajny-klucz" docker-compose up -d
+```
+
+## Skrypt CLI (`winmss_results.py`)
+
+Wyciąga dane z pliku `.cab` i wyświetla wyniki w terminalu.
+
+```bash
+# Zestawienie ogólne + tabele per dywizja
+python3 winmss_results.py
+
+# Tylko zestawienie ogólne
+python3 winmss_results.py --overall
+
+# Ze szczegółami per tor
+python3 winmss_results.py --stages
+
+# Ranking na każdym torze (A/B/C/D/M/PE)
+python3 winmss_results.py --stage-detail
+
+# Eksport do CSV (otwieralny w Excelu)
+python3 winmss_results.py --csv wyniki.csv
+
+# Inny plik .cab
+python3 winmss_results.py inny_mecz.cab --csv wyniki.csv
+```
+
+## Interfejs webowy (`app.py`)
+
+### Panel logowania (Admin)
+
+Dostęp do panelu administracyjnego wymaga zalogowania się.
+
+**Konto domyślne:**
+- **Login:** `bartek`
+- **Hasło:** `IP$c2023` (ZMIEŃ JE PO PIERWSZYM LOGOWANIU!)
+
+Konta użytkowników przechowywane są w bazie danych SQLite (`ipsc.db`) z zabezpieczeniem SHA-256.
+
+### Główna strona — przeglądarka wyników
+
+#### Podstawowe funkcjonalności
+- **Wybór zawodów** — lista zapisanych zawodów w bazie; kliknięcie ładuje wyniki
+- **Nagłówek zawodów** — nazwa, data, poziom (L1/L2/L3), liczba torów i zawodników
+- **Podium** — karty top 3 z Hit Factor / punktami / czasem
+- **Zestawienie ogólne** — sortowalna tabela wszystkich zawodników; kliknięcie wiersza rozwija szczegóły torów (A/B/C/D/M/PE, HF, % w dywizji)
+- **Zakładka Dywizje** — osobne tabele per dywizja z rankingiem i % do lidera dywizji
+- **Zakładka Tory** — ranking na wybranym torze z kolorowanymi kolumnami strzelań; procenty liczone w ramach dywizji
+
+#### Nowe funkcjonalności
+
+**🌐 Wielojęzyczność**
+- Selektor języka w prawym górnym rogu (PL, EN, DE, FR, CZ)
+- Automatyczne tłumaczenie interfejsu
+- Pliki językowe w folderze `static/i18n/`
+
+**🔍 Zaawansowane filtrowanie**
+- **Wyszukiwanie** — po nazwisku lub imieniu zawodnika
+- **Filtr dywizji** — możliwość wyboru jednej lub wielu dywizji jednocześnie
+- **Filtr kategorii** — Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady
+- **Zakres działania** — filtry działają na wszystkich zakładkach (Ogólne, Dywizje, Tory)
+- **Automatyczna recalkulacja** — percentages przeliczane na nowo dla przefiltrowanej grupy
+
+**📊 Eksport wyników**
+- **📄 PDF Export** — nowa funkcjonalność generowania wyników w PDF
+  - Podział na dywizje (każda dywizja na osobnej stronie)
+  - Kolorowe nagłówki dywizji (Open-czerwony, Standard-niebieski, Modified-zielony)
+  - Orientacja pozioma dla lepszej czytelności
+  - Highlighting miejsc 1-3 (złoty/srebrny/brązowy)
+  - Obsługa zarówno pojedynczych zawodów jak i rankingów
+- **📊 CSV Export** — generowany po stronie przeglądarki, otwieralny w Excelu (UTF-8 z BOM)
+
+**🎨 Kolorowanie dywizji**
+- Standardowe kolory IPSC dla dywizji w całym interfejsie
+- Wizualne rozróżnienie dywizji w tabelach i nagłówkach
+
+### Panel administracyjny
+
+Dostępny pod `/admin` — wymaga zalogowania.
+
+#### Tab: Zawody
+- **Wgrywanie pliku** — drag & drop lub klik na formularz; automatyczne wykrywanie `WinMSS.cab` w bieżącym katalogu
+- **Lista zawodów** — tabela wszystkich zapisanych zawodów (ID, nazwa, data, poziom)
+- **Usuwanie zawodów** — przyciski do usunięcia pojedynczych zawodów z bazy
+
+#### Tab: Zawodnicy
+- **Edycja danych zawodnika** — wybór zawodów, następnie edycja dla każdego zawodnika:
+  - Imię i nazwisko
+  - Kategoria (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
+- **Lista zawodników** — tabelaryczny przegląd wszystkich zawodników z zawodów
+- **Zapisywanie zmian** — przycisk "Zapisz" dla każdego zawodnika, zmiany natychmiast wpływają na rankingi
+
+#### Tab: Ranking
+- **Dodawanie rankingu** — nazwa rankingu + wybór wielu zawodów, które tworzą grupę rankingową
+- **Edycja rankingu** — zmiana nazwy oraz przypisanych zawodów
+- **Usuwanie rankingu** — możliwe tylko wtedy, gdy ranking nie ma przypisanych zawodów
+- **Lista rankingów** — podgląd nazw, liczby zawodów i pełnych przypisań do rankingu
+
+#### ⚙️ Tab: Mapowanie Dywizji (NOWE!)
+
+Nowa funkcjonalność umożliwiająca mapowanie importowanych nazw dywizji na standardowe dywizje IPSC.
+
+**Funkcjonalności:**
+- **Wybór zawodów** — selektor zawodów do mapowania dywizji
+- **Automatyczne wykrywanie** — system automatycznie zbiera wszystkie unikalne nazwy dywizji z zaimportowanych zawodów
+- **Mapowanie na standardy** — możliwość przypisania każdej importowanej dywizji do jednej ze standardowych dywizji IPSC
+- **Kopiowanie mapowań** — możliwość skopiowania wszystkich mapowań z jednych zawodów do drugich
+- **Standardowe dywizje** obsługiwane:
+  - **Pistolety:** Open, Standard, Standard Manual, Modified, Classic, Rewolwer, Optics
+  - **Karabiny:** Mini Rifle, Production, Production Optics, PCC Optics, PCC Standard
+  - **Shotgun:** Karabin Open, Karabin Standard
+  - **Specjalistyczne:** PC Optic
+
+**API endpoints:**
+- `GET /admin/api/divisions-mapping` — pobierz mapowania dla zawodów
+- `POST /admin/api/divisions-mapping` — zapisz/usuń mapowanie dywizji
+- `POST /admin/api/divisions-mapping/copy` — kopiuj mapowania między zawodami
+
+**Korzyści:**
+- Ujednolicenie nazw dywizji między różnymi zawodami
+- Lepsze zarządzanie rankingami międzyzawodowymi
+- Automatyczne stosowanie mapowań w wynikach i rankingach
+
+#### Tab: Użytkownicy
+- **Zmiana hasła** — formularz do zmiany hasła zalogowanego użytkownika (wymaga starego hasła)
+
+## Dane zawodników
+
+| Pole | Opis |
+|------|------|
+| Miejsce | Ranking ogólny (na podstawie HF) |
+| Nr | Numer startowy |
+| Nazwisko Imię | Dane zawodnika |
+| Dywizja | Open / Standard / Standard Manual / Modified |
+| Kategoria | Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady |
+| Punkty Total | Suma punktów ze wszystkich torów |
+| Czas Total | Suma czasów |
+| HF Ogólny | Hit Factor = punkty / czas |
+| % Lidera | Procent do najlepszego HF |
+
+## Baza danych (`database.py`)
+
+Aplikacja wykorzystuje SQLite do przechowywania zawodów i zarządzania użytkownikami.
+
+### Nowe tabele dla mapowania dywizji
+
+```sql
+CREATE TABLE division_mappings (
+    id INTEGER PRIMARY KEY,
+    match_id INTEGER NOT NULL,
+    source_division TEXT NOT NULL,
+    mapped_division_id TEXT,
+    mapped_division_color TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (match_id) REFERENCES matches (id) ON DELETE CASCADE,
+    UNIQUE(match_id, source_division)
+)
+```
+
+**Pola tabeli `division_mappings`:**
+- **match_id** — ID zawodów, dla których stosowane jest mapowanie
+- **source_division** — oryginalna nazwa dywizji z importu
+- **mapped_division_id** — ID standardowej dywizji IPSC
+- **mapped_division_color** — kolor dywizji (hex)
+
+### Funkcje do zarządzania mapowaniem dywizji
+
+- `get_division_mapping(match_id, source_division)` — pobierz mapowanie dla dywizji
+- `set_division_mapping(match_id, source_division, mapped_id, color)` — ustaw mapowanie
+- `get_all_division_mappings(match_id)` — pobierz wszystkie mapowania dla zawodów
+- `copy_division_mappings(source_match_id, target_match_id)` — kopiuj mapowania
+- `apply_division_mappings(data, match_id)` — zastosuj mapowania w danych wyników
+
+---
+
+## Ostatnie aktualizacje (2026)
+
+### v2.4 - Mapowanie Dywizji i PDF Export
+- ✅ **PDF Export** — export wyników do PDF z podziałem na dywizje
+- ✅ **Mapowanie Dywizji** — inteligentne mapowanie importowanych dywizji na standardy IPSC
+- ✅ **Wielojęzyczność** — obsługa 5 języków (PL, EN, DE, FR, CZ)
+- ✅ **Kolorowanie dywizji** — standardowe kolory IPSC w interfejsie
+- ✅ **Zaawansowane filtrowanie** — multi-select filtrów dywizji i kategorii
+- ✅ **Automatyczna recalkulacja** — percentages dla przefiltrowanych grup
+
+Narzędzie do wyciągania i przeglądania wyników zawodów strzeleckich IPSC z plików WinMSS `.cab`.
+
+## Struktura projektu
+
+```
+├── WinMSS.cab                    # Plik z danymi zawodów (WinMSS export)
+├── data/                         # Folder z bazą danych i konfiguracją (persystentny w Docker)
+│   ├── config.json               # Automatycznie generowana konfiguracja instancji
+│   └── {instance_id}.db          # Baza danych SQLite (unikalnie nazwana dla każdej instancji)
+├── winmss_results.py             # Skrypt CLI – wyniki w terminalu / eksport CSV
+├── app.py                        # Serwer Flask – przeglądarkowy interfejs UI
+├── database.py                   # Warstwa bazy danych (ORM)
+├── docker-compose.yml            # Konfiguracja Docker Compose
+├── Dockerfile                    # Specyfikacja kontenera
 └── templates/
     ├── index.html                # Frontend (przeglądarka wyników)
     ├── admin.html                # Panel administracyjny (zawody + ranking + użytkownicy)
