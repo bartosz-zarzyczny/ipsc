@@ -44,10 +44,111 @@ python3 app.py
 #### Možnost 1: Docker Compose (doporučeno)
 
 ```bash
-# Výchozí instance – port 3001, výchozí název kontejneru
+# Výchozí instance – port 3000, výchozí název kontejneru
 docker-compose up --build
 
 # Nebo na pozadí
+docker-compose up -d
+```
+
+**Spuštění více instancí na jednom VPS:**
+
+Aby se předešlo konfliktům mezi instancemi, použijte příznak `-p` (project-name). Každý projekt musí mít jedinečný název:
+
+```bash
+# Instance 1 – port 3001, projekt ipsc1
+CONTAINER_NAME=ipsc-app-1 PORT=3001 DATA_DIR=./data-3001 docker-compose -p ipsc1 up -d
+
+# Instance 2 – port 3002, projekt ipsc2
+CONTAINER_NAME=ipsc-app-2 PORT=3002 DATA_DIR=./data-3002 docker-compose -p ipsc2 up -d
+
+# Instance 3 – port 3003, projekt ipsc3
+CONTAINER_NAME=ipsc-app-3 PORT=3003 DATA_DIR=./data-3003 docker-compose -p ipsc3 up -d
+```
+
+**Správa instancí:**
+
+```bash
+# Zobrazit všechny běžící kontejnery
+docker ps
+
+# Zastavit konkrétní instanci
+docker-compose -p ipsc1 down
+
+# Prohlížet logy instance
+docker-compose -p ipsc1 logs -f
+
+# Restartovat konkrétní instanci
+docker-compose -p ipsc1 restart
+```
+
+#### Proměnné prostředí
+
+V `docker-compose.yml` můžete přizpůsobit:
+
+| Proměnná | Popis | Výchozí |
+|----------|-------|---------|
+| `PORT` | Port hostitele pro mapování | `3000` |
+| `DATA_DIR` | Datový adresář pro databázi | `./data` |
+| `CONTAINER_NAME` | Název Docker kontejneru | `ipsc-app` |
+| `SECRET_KEY` | Klíč relace Flask (SHA-256) | `default-secret-key-change-me` |
+
+## CLI Skript (`winmss_results.py`)
+
+Extrahuje data ze souboru `.cab` a zobrazuje výsledky v terminálu.
+
+## Webové rozhraní (`app.py`)
+
+### Administrátorský panel
+
+**Výchozí účet:**
+- **Uživatelské jméno:** `bartek`
+- **Heslo:** `IP$c2023` (ZMĚŇTE PO PRVNÍM PŘIHLÁŠENÍ!)
+
+#### Nové funkcionality
+
+**🌐 Multilingvální podpora**
+- Výběr jazyka v pravém horním rohu (PL, EN, DE, FR, CZ)
+- Automatický překlad rozhraní
+
+**📄 PDF Export** 
+- Export výsledků do PDF rozdělených podle divizí
+- Barevné záhlaví divizí podle standardů IPSC
+- Orientace na šířku pro lepší čitelnost
+
+**⚙️ Mapování divizí**
+- Inteligentní mapování importovaných názvů divizí na standardy IPSC
+- Standardní divize: Open, Standard, Modified, atd.
+
+## Nejnovější aktualizace (2026)
+
+### v2.4 - Mapování divizí a PDF Export
+- ✅ **PDF Export** — export výsledků do PDF rozdělených podle divizí
+- ✅ **Mapování divizí** — inteligentní mapování na standardy IPSC  
+- ✅ **Multilingvální podpora** — podpora 5 jazyků (PL, EN, DE, FR, CZ)
+- ✅ **Barevné rozlišení divizí** — standardní barvy IPSC v rozhraní
+- ✅ **Pokročilé filtrování** — multi-select filtry pro divize a kategorie
+
+## Multilingvální podpora
+
+Aplikace podporuje dynamickou změnu jazyka bez nutnosti obnovení stránky. Dostupné jazyky:
+
+- 🇵🇱 Polština
+- 🇬🇧 Angličtina
+- 🇩🇪 Němčina
+- 🇨🇿 Čeština
+- 🇫🇷 Francouzština
+
+Podrobná dokumentace k implementaci multilingvality je k dispozici v souboru [MULTILINGUALITY_CZ.md](MULTILINGUALITY_CZ.md).
+
+## Licence
+
+Tento software je poskytován **zdarma** na bázi "jak je". Úplné licenční podmínky jsou k dispozici v souboru [LICENSE_CZ.md](LICENSE_CZ.md).
+
+### Důležité:
+- **Bez záruky** — autor neodpovídá za žádné chyby nebo škody
+- **Každý uživatel** používá software **na vlastní zodpovědnost**
+- **Požadavek na zachování** — sekce "Sledujte nás na sociálních sítích" musí zůstat na hlavní stránce aplikace
 docker-compose up -d
 ```
 

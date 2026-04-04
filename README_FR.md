@@ -30,6 +30,127 @@ Un outil pour extraire et afficher les résultats des compétitions de tir IPSC 
   brew install cabextract   # macOS
   ```
 
+## Lancement de l'application
+
+### Localement (sans Docker)
+
+```bash
+python3 app.py
+# → le navigateur s'ouvrira sur http://localhost:5000
+```
+
+### Dans un conteneur Docker
+
+#### Option 1: Docker Compose (recommandé)
+
+```bash
+# Instance par défaut – port 3000, nom de conteneur par défaut
+docker-compose up --build
+
+# Ou en arrière-plan
+docker-compose up -d
+```
+
+**Exécuter plusieurs instances sur un VPS:**
+
+Pour éviter les conflits entre instances, utilisez l'indicateur `-p` (project-name). Chaque projet doit avoir un nom unique:
+
+```bash
+# Instance 1 – port 3001, projet ipsc1
+CONTAINER_NAME=ipsc-app-1 PORT=3001 DATA_DIR=./data-3001 docker-compose -p ipsc1 up -d
+
+# Instance 2 – port 3002, projet ipsc2
+CONTAINER_NAME=ipsc-app-2 PORT=3002 DATA_DIR=./data-3002 docker-compose -p ipsc2 up -d
+
+# Instance 3 – port 3003, projet ipsc3
+CONTAINER_NAME=ipsc-app-3 PORT=3003 DATA_DIR=./data-3003 docker-compose -p ipsc3 up -d
+```
+
+**Gérer les instances:**
+
+```bash
+# Afficher tous les conteneurs en cours d'exécution
+docker ps
+
+# Arrêter une instance spécifique
+docker-compose -p ipsc1 down
+
+# Voir les logs d'instance
+docker-compose -p ipsc1 logs -f
+
+# Redémarrer une instance spécifique
+docker-compose -p ipsc1 restart
+```
+
+#### Variables d'environnement
+
+Dans `docker-compose.yml` vous pouvez personnaliser:
+
+| Variable | Description | Défaut |
+|----------|-------------|---------|
+| `PORT` | Port hôte pour mappage | `3000` |
+| `DATA_DIR` | Répertoire de données pour base de données | `./data` |
+| `CONTAINER_NAME` | Nom du conteneur Docker | `ipsc-app` |
+| `SECRET_KEY` | Clé de session Flask (SHA-256) | `default-secret-key-change-me` |
+
+## Script CLI (`winmss_results.py`)
+
+Extrait les données du fichier `.cab` et affiche les résultats dans le terminal.
+
+## Interface web (`app.py`)
+
+### Panneau d'administration
+
+**Compte par défaut:**
+- **Nom d'utilisateur:** `bartek`
+- **Mot de passe:** `IP$c2023` (CHANGEZ-LE APRÈS LA PREMIÈRE CONNEXION!)
+
+#### Nouvelles fonctionnalités
+
+**🌐 Support multilingue**
+- Sélecteur de langue dans le coin supérieur droit (PL, EN, DE, FR, CZ)
+- Traduction automatique de l'interface
+
+**📄 Export PDF**
+- Export des résultats en PDF divisés par divisions
+- En-têtes de division colorés selon les standards IPSC
+- Orientation paysage pour une meilleure lisibilité
+
+**⚙️ Mappage des divisions**
+- Mappage intelligent des noms de divisions importées vers les standards IPSC
+- Divisions standard: Open, Standard, Modified, etc.
+
+## Dernières mises à jour (2026)
+
+### v2.4 - Mappage des divisions et Export PDF
+- ✅ **Export PDF** — export des résultats en PDF divisés par divisions
+- ✅ **Mappage des divisions** — mappage intelligent vers les standards IPSC
+- ✅ **Support multilingue** — support de 5 langues (PL, EN, DE, FR, CZ)
+- ✅ **Coloration des divisions** — couleurs IPSC standard dans l'interface
+- ✅ **Filtrage avancé** — filtres multi-sélection pour divisions et catégories
+
+## Support multilingue
+
+L'application prend en charge le changement de langue dynamique sans rechargement de page. Langues disponibles:
+
+- 🇵🇱 Polonais
+- 🇬🇧 Anglais
+- 🇩🇪 Allemand
+- 🇨🇿 Tchèque
+- 🇫🇷 Français
+
+Documentation détaillée sur l'implémentation multilingue disponible dans [MULTILINGUALITY_FR.md](MULTILINGUALITY_FR.md).
+
+## Licence
+
+Ce logiciel est fourni **gratuitement** sur une base "tel quel". Les conditions de licence complètes sont disponibles dans [LICENSE_FR.md](LICENSE_FR.md).
+
+### Important:
+- **Aucune garantie** — l'auteur n'est pas responsable des erreurs ou dommages
+- **Chaque utilisateur** utilise le logiciel **à ses propres risques**
+- **Exigence de maintien** — la section "Suivez-nous sur les médias sociaux" doit rester sur la page principale de l'application
+  ```
+
 ## Exécution de l'application
 
 ### Localement (sans Docker)

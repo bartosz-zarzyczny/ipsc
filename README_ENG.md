@@ -44,10 +44,293 @@ python3 app.py
 #### Option 1: Docker Compose (recommended)
 
 ```bash
-# Default instance – port 3001, default container name
+# Default instance – port 3000, default container name
 docker-compose up --build
 
 # Or in background
+docker-compose up -d
+```
+
+**Running multiple instances on one VPS:**
+
+To avoid conflicts between instances, use the `-p` flag (project-name). Each project must have a unique name:
+
+```bash
+# Instance 1 – port 3001, project ipsc1
+CONTAINER_NAME=ipsc-app-1 PORT=3001 DATA_DIR=./data-3001 docker-compose -p ipsc1 up -d
+
+# Instance 2 – port 3002, project ipsc2
+CONTAINER_NAME=ipsc-app-2 PORT=3002 DATA_DIR=./data-3002 docker-compose -p ipsc2 up -d
+
+# Instance 3 – port 3003, project ipsc3
+CONTAINER_NAME=ipsc-app-3 PORT=3003 DATA_DIR=./data-3003 docker-compose -p ipsc3 up -d
+```
+
+**Managing instances:**
+
+```bash
+# Display all running containers
+docker ps
+
+# Stop specific instance
+docker-compose -p ipsc1 down
+
+# View instance logs
+docker-compose -p ipsc1 logs -f
+
+# Restart specific instance
+docker-compose -p ipsc1 restart
+```
+
+**Why use `-p` flag:**
+
+The `-p` flag isolates each project with its containers, networks, and volumes. Without it, all instances share the same project-name, leading to conflicts and preventing multiple instances from running simultaneously.
+
+Each instance automatically creates:
+- Unique `config.json` (instance ID)
+- Unique database (`data/{instance_id}.db`)
+- Separate data without conflicts
+
+The database (`{instance_id}.db`) will be stored in the `./data/` directory on the host and **persists between restarts**.
+
+#### Option 2: Docker directly
+
+```bash
+# Build image
+docker build -t ipsc:latest .
+
+# Run container
+docker run -d \
+  --name ipsc-app \
+  -p 3000:5000 \
+  -v $(pwd)/data:/app/data \
+  ipsc:latest
+
+# Stop
+docker stop ipsc-app
+docker rm ipsc-app
+```
+
+#### Environment Variables
+
+In `docker-compose.yml` you can customize:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Host port for mapping | `3000` |
+| `DATA_DIR` | Data directory for database | `./data` |
+| `CONTAINER_NAME` | Docker container name | `ipsc-app` |
+| `SECRET_KEY` | Flask session key (SHA-256) | `default-secret-key-change-me` |
+
+**Example:**
+```bash
+CONTAINER_NAME=my-app PORT=8080 DATA_DIR=./data-custom SECRET_KEY="my-super-secret-key" docker-compose up -d
+```
+
+## CLI Script (`winmss_results.py`)
+
+Extracts data from `.cab` file and displays results in terminal.
+
+```bash
+# Overall summary + tables per division
+python3 winmss_results.py
+
+# Overall summary only
+python3 winmss_results.py --overall
+
+# With stage details
+python3 winmss_results.py --stages
+
+# Ranking per stage (A/B/C/D/M/PE)
+python3 winmss_results.py --stage-detail
+
+# Export to CSV (Excel compatible)
+python3 winmss_results.py --csv results.csv
+
+# Different .cab file
+python3 winmss_results.py other_match.cab --csv results.csv
+```
+
+## Web Interface (`app.py`)
+
+### Admin Login Panel
+
+Access to the admin panel requires login.
+
+**Default account:**
+- **Username:** `bartek`
+- **Password:** `IP$c2023` (CHANGE IT AFTER FIRST LOGIN!)
+
+User accounts are stored in SQLite database (`{instance_id}.db`) with SHA-256 protection.
+
+### Main Page — Results Browser
+
+#### Basic Features
+- **Match selection** — list of saved matches in database; click loads results
+- **Match header** — name, date, level (L1/L2/L3), number of stages and competitors
+- **Podium** — top 3 cards with Hit Factor / points / time
+- **Overall standings** — sortable table of all competitors; click row expands stage details (A/B/C/D/M/PE, HF, % in division)
+- **Divisions tab** — separate tables per division with ranking and % to division leader
+- **Stages tab** — ranking on selected stage with colored shooting columns; percentages calculated within divisions
+
+#### New Features
+
+**🌐 Multilingual Support**
+- Language selector in top right corner (PL, EN, DE, FR, CZ)
+- Automatic interface translation
+- Language files in `static/i18n/` folder
+
+**🔍 Advanced Filtering**
+- **Search** — by competitor's last name or first name
+- **Division filter** — ability to select one or multiple divisions simultaneously
+- **Category filter** — Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady
+- **Scope** — filters work on all tabs (Overall, Divisions, Stages)
+- **Automatic recalculation** — percentages recalculated for filtered group
+
+**📊 Results Export**
+- **📄 PDF Export** — new PDF generation functionality
+  - Divided by divisions (each division on separate page)
+  - Colored division headers (Open-red, Standard-blue, Modified-green)
+  - Landscape orientation for better readability
+  - Highlighting of places 1-3 (gold/silver/bronze)
+  - Support for both individual matches and rankings
+- **📊 CSV Export** — generated browser-side, Excel compatible (UTF-8 with BOM)
+
+**🎨 Division Coloring**
+- Standard IPSC colors for divisions throughout interface
+- Visual division distinction in tables and headers
+
+### Admin Panel
+
+Available at `/admin` — requires login.
+
+#### Tab: Matches
+- **File upload** — drag & drop or click on form; automatic detection of `WinMSS.cab` in current directory
+- **Match list** — table of all saved matches (ID, name, date, level)
+- **Delete matches** — buttons to delete individual matches from database
+
+#### Tab: Competitors
+- **Edit competitor data** — select matches, then edit for each competitor:
+  - First and last name
+  - Category (Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady)
+- **Competitor list** — tabular view of all competitors from matches
+- **Save changes** — "Save" button for each competitor, changes immediately affect rankings
+
+#### Tab: Rankings
+- **Add ranking** — ranking name + selection of multiple matches that form ranking group
+- **Edit ranking** — change name and assigned matches
+- **Delete ranking** — possible only when ranking has no assigned matches
+- **Rankings list** — view names, number of matches and full ranking assignments
+
+#### ⚙️ Tab: Division Mapping (NEW!)
+
+New functionality allowing mapping of imported division names to standard IPSC divisions.
+
+**Features:**
+- **Match selection** — selector for matches to map divisions
+- **Automatic detection** — system automatically collects all unique division names from imported matches
+- **Standard mapping** — ability to assign each imported division to one of standard IPSC divisions
+- **Copy mappings** — ability to copy all mappings from one match to another
+- **Standard divisions** supported:
+  - **Pistols:** Open, Standard, Standard Manual, Modified, Classic, Revolver, Optics
+  - **Rifles:** Mini Rifle, Production, Production Optics, PCC Optics, PCC Standard
+  - **Shotgun:** Rifle Open, Rifle Standard
+  - **Specialized:** PC Optic
+
+**API endpoints:**
+- `GET /admin/api/divisions-mapping` — get all mappings and available divisions
+- `POST /admin/api/divisions-mapping` — create/update/delete mapping
+
+**Benefits:**
+- Unification of division names between different matches
+- Better management of inter-match rankings
+- Automatic application of mappings in results and rankings
+
+#### Tab: Users
+- **Change password** — form to change logged user's password (requires old password)
+
+## Competitor Data
+
+| Field | Description |
+|-------|-------------|
+| Place | Overall ranking (based on HF) |
+| No | Start number |
+| Last Name First Name | Competitor data |
+| Division | Open / Standard / Standard Manual / Modified |
+| Category | Senior / Super Senior / Grand Senior / Junior / Lady / Senior Lady |
+| Points Total | Sum of points from all stages |
+| Time Total | Sum of times |
+| Overall HF | Hit Factor = points / time |
+| % Leader | Percentage to best HF |
+
+## Database (`database.py`)
+
+Application uses SQLite to store matches and manage users.
+
+### New tables for division mapping
+
+```sql
+CREATE TABLE division_mappings (
+    id INTEGER PRIMARY KEY,
+    match_id INTEGER NOT NULL,
+    source_division TEXT NOT NULL,
+    mapped_division_id TEXT,
+    mapped_division_color TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (match_id) REFERENCES matches (id) ON DELETE CASCADE,
+    UNIQUE(match_id, source_division)
+)
+```
+
+**Fields in `division_mappings` table:**
+- **match_id** — match ID for which mapping applies
+- **source_division** — original division name from import
+- **mapped_division_id** — standard IPSC division ID
+- **mapped_division_color** — division color (hex)
+
+### Functions for managing division mapping
+
+- `get_division_mapping(match_id, source_division)` — get mapping for division
+- `set_division_mapping(match_id, source_division, mapped_id, color)` — set mapping
+- `get_all_division_mappings(match_id)` — get all mappings for match
+- `copy_division_mappings(source_match_id, target_match_id)` — copy mappings
+- `apply_division_mappings(data, match_id)` — apply mappings in results data
+
+---
+
+## Latest Updates (2026)
+
+### v2.4 - Division Mapping and PDF Export
+- ✅ **PDF Export** — export results to PDF divided by divisions  
+- ✅ **Division Mapping** — intelligent mapping of imported divisions to IPSC standards
+- ✅ **Multilingual Support** — support for 5 languages (PL, EN, DE, FR, CZ)
+- ✅ **Division Coloring** — standard IPSC colors in interface
+- ✅ **Advanced Filtering** — multi-select filters for divisions and categories
+- ✅ **Automatic Recalculation** — percentages for filtered groups
+
+## Multilingual Support
+
+The application supports dynamic language switching without page reload. Available languages:
+
+- 🇵🇱 Polish
+- 🇬🇧 English  
+- 🇩🇪 German
+- 🇨🇿 Czech
+- 🇫🇷 French
+
+Detailed documentation on multilingual implementation is available in [MULTILINGUALITY_ENG.md](MULTILINGUALITY_ENG.md).
+
+## License
+
+This software is provided **free of charge** on an "as is" basis. Full license terms are available in [LICENSE_EN.md](LICENSE_EN.md).
+
+### Important:
+- **No warranty** — author is not responsible for any errors or damages
+- **Each user** uses the software **at their own risk**  
+- **Requirement to maintain** — "Follow us on social media" section must remain on the main application page
+
+Also available in [Polish license version](LICENSE.md).
 docker-compose up -d
 ```
 

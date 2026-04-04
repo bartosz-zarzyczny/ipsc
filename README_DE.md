@@ -30,6 +30,127 @@ Ein Tool zum Extrahieren und Anzeigen von IPSC-Schießwettkampfergebnissen aus W
   brew install cabextract   # macOS
   ```
 
+## Anwendung starten
+
+### Lokal (ohne Docker)
+
+```bash
+python3 app.py
+# → Browser öffnet sich auf http://localhost:5000
+```
+
+### Im Docker-Container
+
+#### Option 1: Docker Compose (empfohlen)
+
+```bash
+# Standard-Instanz – Port 3000, Standard-Container-Name
+docker-compose up --build
+
+# Oder im Hintergrund
+docker-compose up -d
+```
+
+**Mehrere Instanzen auf einem VPS ausführen:**
+
+Um Konflikte zwischen Instanzen zu vermeiden, verwenden Sie die `-p`-Flagge (project-name). Jedes Projekt muss einen eindeutigen Namen haben:
+
+```bash
+# Instanz 1 – Port 3001, Projekt ipsc1
+CONTAINER_NAME=ipsc-app-1 PORT=3001 DATA_DIR=./data-3001 docker-compose -p ipsc1 up -d
+
+# Instanz 2 – Port 3002, Projekt ipsc2
+CONTAINER_NAME=ipsc-app-2 PORT=3002 DATA_DIR=./data-3002 docker-compose -p ipsc2 up -d
+
+# Instanz 3 – Port 3003, Projekt ipsc3
+CONTAINER_NAME=ipsc-app-3 PORT=3003 DATA_DIR=./data-3003 docker-compose -p ipsc3 up -d
+```
+
+**Instanzen verwalten:**
+
+```bash
+# Alle laufenden Container anzeigen
+docker ps
+
+# Spezifische Instanz stoppen
+docker-compose -p ipsc1 down
+
+# Instanz-Logs anzeigen
+docker-compose -p ipsc1 logs -f
+
+# Spezifische Instanz neu starten
+docker-compose -p ipsc1 restart
+```
+
+#### Umgebungsvariablen
+
+In `docker-compose.yml` können Sie anpassen:
+
+| Variable | Beschreibung | Standard |
+|----------|--------------|----------|
+| `PORT` | Host-Port für Zuordnung | `3000` |
+| `DATA_DIR` | Datenverzeichnis für Datenbank | `./data` |
+| `CONTAINER_NAME` | Docker-Container-Name | `ipsc-app` |
+| `SECRET_KEY` | Flask-Session-Schlüssel (SHA-256) | `default-secret-key-change-me` |
+
+## CLI-Skript (`winmss_results.py`)
+
+Extrahiert Daten aus `.cab`-Datei und zeigt Ergebnisse im Terminal an.
+
+## Web-Interface (`app.py`)
+
+### Admin-Panel
+
+**Standard-Konto:**
+- **Benutzername:** `bartek`
+- **Passwort:** `IP$c2023` (NACH ERSTER ANMELDUNG ÄNDERN!)
+
+#### Neue Funktionalitäten
+
+**🌐 Mehrsprachige Unterstützung**
+- Sprachauswahl in der oberen rechten Ecke (PL, EN, DE, FR, CZ)
+- Automatische Interface-Übersetzung
+
+**📄 PDF-Export**
+- Export der Ergebnisse in PDF unterteilt nach Divisionen
+- Farbige Divisions-Header nach IPSC-Standards
+- Querformat für bessere Lesbarkeit
+
+**⚙️ Divisions-Zuordnung**
+- Intelligente Zuordnung importierter Divisions-Namen zu IPSC-Standards
+- Standard-Divisionen: Open, Standard, Modified, etc.
+
+## Neueste Updates (2026)
+
+### v2.4 - Divisions-Zuordnung und PDF-Export
+- ✅ **PDF-Export** — Export der Ergebnisse in PDF unterteilt nach Divisionen
+- ✅ **Divisions-Zuordnung** — intelligente Zuordnung zu IPSC-Standards
+- ✅ **Mehrsprachige Unterstützung** — Unterstützung für 5 Sprachen (PL, EN, DE, FR, CZ)
+- ✅ **Divisions-Farbgebung** — Standard-IPSC-Farben im Interface
+- ✅ **Erweiterte Filterung** — Multi-Select-Filter für Divisionen und Kategorien
+
+## Mehrsprachige Unterstützung
+
+Die Anwendung unterstützt dynamischen Sprachwechsel ohne Seiten-Neuladen. Verfügbare Sprachen:
+
+- 🇵🇱 Polnisch
+- 🇬🇧 Englisch
+- 🇩🇪 Deutsch
+- 🇨🇿 Tschechisch
+- 🇫🇷 Französisch
+
+Detaillierte Dokumentation zur mehrsprachigen Implementierung ist verfügbar in [MULTILINGUALITY_DE.md](MULTILINGUALITY_DE.md).
+
+## Lizenz
+
+Diese Software wird **kostenlos** auf "Wie-Sie-Ist"-Basis bereitgestellt. Vollständige Lizenzbedingungen sind verfügbar in [LICENSE_DE.md](LICENSE_DE.md).
+
+### Wichtig:
+- **Keine Garantie** — Autor ist nicht verantwortlich für Fehler oder Schäden
+- **Jeder Benutzer** verwendet die Software **auf eigene Verantwortung**
+- **Erhaltungsanforderung** — Abschnitt "Folgen Sie uns in sozialen Medien" muss auf der Hauptseite der Anwendung verbleiben
+  ```
+
 ## Anwendung ausführen
 
 ### Lokal (ohne Docker)

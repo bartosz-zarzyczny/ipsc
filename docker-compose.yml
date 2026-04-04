@@ -5,17 +5,18 @@ services:
     build: .
     container_name: ${CONTAINER_NAME:-ipsc-app}
     ports:
-      - "${PORT:-3001}:5000"
+      - "${PORT:-3000}:5000"
     volumes:
-      - ./data:/app/data
+      - ${DATA_DIR:-./data}:/app/data
       - ./WinMSS.cab:/app/WinMSS.cab:ro
     environment:
       - FLASK_ENV=production
       - SECRET_KEY=${SECRET_KEY:-default-secret-key-change-me}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
       start_period: 40s
