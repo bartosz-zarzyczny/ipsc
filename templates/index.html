@@ -1452,6 +1452,58 @@ function getFiltered() {
   );
 }
 
+function getFilteredRankingCompetitors() {
+  const selectedDivs = getSelectedDivisions();
+  const selectedCat = document.getElementById('f-cat').value;
+  const searchEl = document.getElementById('f-search');
+  const searchStr = searchEl ? searchEl.value.toLowerCase() : '';
+
+  let filtered = G.data;
+  if (selectedDivs.length) {
+    filtered = filtered.filter(c => selectedDivs.includes(c.division));
+  }
+  if (selectedCat) {
+    filtered = filtered.filter(c => c.categories && c.categories[selectedCat]);
+  }
+  if (searchStr) {
+    filtered = filtered.filter(c => c.name.toLowerCase().includes(searchStr));
+  }
+
+  filtered = filtered.filter(c => !c.is_disq).sort((a, b) => a.rank - b.rank);
+
+  if (selectedCat) {
+    filtered = filtered.map(c => {
+      const compCopy = JSON.parse(JSON.stringify(c));
+      const categoryMatchResults = compCopy.matchResults.filter(mr => mr.category === selectedCat);
+      compCopy.matchResults = categoryMatchResults.map(result => {
+        let matchCompetitors = G.data
+          .filter(comp => comp.categories && comp.categories[selectedCat] && !comp.is_disq);
+        if (selectedDivs.length) {
+          matchCompetitors = matchCompetitors.filter(comp => selectedDivs.includes(comp.division));
+        }
+        matchCompetitors = matchCompetitors
+          .map(comp => comp.matchResults.find(mr => mr.matchId === result.matchId && mr.category === selectedCat))
+          .filter(mr => mr && !mr.is_disq);
+        const maxPointsInCategory = Math.max(...matchCompetitors.map(mr => mr.points), 0);
+        const newPctInDiv = maxPointsInCategory > 0 && result.points > 0
+          ? (result.points / maxPointsInCategory * 100) : 0;
+        return { ...result, pct_in_div: newPctInDiv, multiplied_pct: newPctInDiv * result.matchMultiplier };
+      });
+      const topMatchesCount = G.rankingInfo.topMatchesCount;
+      const validResults = compCopy.matchResults.filter(r => !r.is_disq);
+      const topResults = validResults
+        .sort((a, b) => b.multiplied_pct - a.multiplied_pct)
+        .slice(0, topMatchesCount > 0 ? topMatchesCount : validResults.length);
+      compCopy.total_pct = topResults.reduce((sum, r) => sum + r.multiplied_pct, 0);
+      return compCopy;
+    });
+    filtered = filtered.sort((a, b) => b.total_pct - a.total_pct);
+    filtered.forEach((c, i) => { c.rank = i + 1; });
+  }
+
+  return filtered;
+}
+
 function applyFilters() {
   if (!G.data) return;
   
@@ -1863,38 +1915,74 @@ function highlightTab(tab) {
 ═══════════════════════════════════════════════════════════════════════════ */
 function downloadCSV() {
   if (!G.data) return;
-  const { stages, competitors } = G.data;
-  const sn = stages.map(s => s.name);
 
-  const head = [
-    'Miejsce','Nr','Zawodnik','Dywizja','Kategoria','Płeć','Eskwadra',
-    ...sn.flatMap(n => [`${n} Pkt`,`${n} Czas`,`${n} HF`]),
-    'Pkt łącznie','Czas łącznie','HF Overall','% lidera'
-  ];
+  // Determine if this is a ranking or match
+  const isRanking = Array.isArray(G.data) && G.rankingInfo;
+  
+  let csv, filename;
+  
+  if (isRanking) {
+    // Generate CSV for ranking data (respects active filters)
+    const filtered = getFilteredRankingCompetitors();
+    const head = [
+      'Miejsce','Nr','Zawodnik','Dywizja','Kategoria','Płeć',
+      'Liczba meczów','Łączny % (najlepsze mecze)'
+    ];
 
-  const rows = competitors.map(c => [
-    c.is_disq ? 'DSQ' : c.rank,
-    c.comp_id, c.name, c.division, c.category,
-    c.female ? 'K' : 'M', c.squad,
-    ...c.stage_scores.flatMap(sc =>
-      sc == null        ? ['','','']
-      : sc.disq         ? ['DSQ','','DSQ']
-      : [sc.pts.toFixed(4), sc.time.toFixed(2), sc.hf.toFixed(4)]
-    ),
-    c.is_disq ? 'DSQ' : c.total_points.toFixed(4),
-    c.is_disq ? '' : c.total_time.toFixed(2),
-    c.is_disq ? 'DSQ' : c.overall_hf.toFixed(4),
-    c.is_disq ? 'DSQ' : c.pct.toFixed(2) + '%',
-  ]);
+    const rows = filtered.map((c, idx) => [
+      idx + 1,
+      c.comp_id || '',
+      c.name || '',
+      c.division || '',
+      c.category || '',
+      c.female ? 'K' : 'M',
+      c.matchResults ? c.matchResults.filter(r => !r.is_disq).length : 0,
+      (c.total_pct || 0).toFixed(2) + '%'
+    ]);
 
-  const csv = [head, ...rows]
-    .map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(','))
-    .join('\r\n');
+    csv = [head, ...rows]
+      .map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(','))
+      .join('\r\n');
+
+    filename = (G.rankingInfo.name.replace(/[^\w\s-]/g,'').trim() || 'ranking') + '.csv';
+  } else {
+    // Generate CSV for match data (respects active filters)
+    const filtered = getFiltered();
+    const { stages } = G.data;
+    const sn = stages.map(s => s.name);
+
+    const head = [
+      'Miejsce','Nr','Zawodnik','Dywizja','Kategoria','Płeć','Eskwadra',
+      ...sn.flatMap(n => [`${n} Pkt`,`${n} Czas`,`${n} HF`]),
+      'Pkt łącznie','Czas łącznie','HF Overall','% lidera'
+    ];
+
+    const rows = filtered.map(c => [
+      c.is_disq ? 'DSQ' : c.rank,
+      c.comp_id, c.name, c.division, c.category,
+      c.female ? 'K' : 'M', c.squad,
+      ...c.stage_scores.flatMap(sc =>
+        sc == null        ? ['','','']
+        : sc.disq         ? ['DSQ','','DSQ']
+        : [sc.pts.toFixed(4), sc.time.toFixed(2), sc.hf.toFixed(4)]
+      ),
+      c.is_disq ? 'DSQ' : c.total_points.toFixed(4),
+      c.is_disq ? '' : c.total_time.toFixed(2),
+      c.is_disq ? 'DSQ' : c.overall_hf.toFixed(4),
+      c.is_disq ? 'DSQ' : c.pct.toFixed(2) + '%',
+    ]);
+
+    csv = [head, ...rows]
+      .map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(','))
+      .join('\r\n');
+
+    filename = (G.data.match.name.replace(/[^\w\s-]/g,'').trim() || 'wyniki') + '.csv';
+  }
 
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = (G.data.match.name.replace(/[^\w\s-]/g,'').trim() || 'wyniki') + '.csv';
+  a.download = filename;
   a.click();
 }
 
@@ -1933,6 +2021,8 @@ function downloadPDF() {
 }
 
 function generateRankingPDFContent() {
+  const filteredAll = getFilteredRankingCompetitors();
+
   let html = `
     <style>
       @media print {
@@ -1948,16 +2038,16 @@ function generateRankingPDFContent() {
       </p>
   `;
 
-  // Get unique divisions
-  const divisions = [...new Set(G.data.map(c => c.division))].sort();
+  // Get unique divisions from filtered data only
+  const divisions = [...new Set(filteredAll.map(c => c.division))].sort();
 
   // Build a table for each division
   divisions.forEach((div, divIdx) => {
-    const competitors = G.data
-      .filter(c => c.division === div && !c.is_disq)
+    const competitors = filteredAll
+      .filter(c => c.division === div)
       .sort((a, b) => b.total_pct - a.total_pct);
     
-    const disqCompetitors = G.data.filter(c => c.division === div && c.is_disq);
+    const disqCompetitors = [];
 
     html += `
       <div style="page-break-after: auto; margin-bottom: 16px;">
@@ -2044,7 +2134,8 @@ function generateRankingPDFContent() {
 }
 
 function generateMatchPDFContent() {
-  const { match, competitors, stages } = G.data;
+  const { match, stages } = G.data;
+  const filteredAll = getFiltered();
   
   let html = `
     <style>
@@ -2057,22 +2148,22 @@ function generateMatchPDFContent() {
     <div style="font-family: Arial, sans-serif; padding: 12px; color: #333;">
       <h1 style="text-align: center; margin: 0 0 6px 0; color: #1a5276; font-size: 20px;">${esc(match.name)}</h1>
       <p style="text-align: center; color: #666; margin: 0 0 16px 0; font-size: 12px;">
-        ${getTrans('meta.date')}: ${match.date} | ${getTrans('meta.level')}: L${match.level} | ${getTrans('meta.stages')}: ${stages.length} | ${getTrans('meta.competitors')}: ${competitors.length}
+        ${getTrans('meta.date')}: ${match.date} | ${getTrans('meta.level')}: L${match.level} | ${getTrans('meta.stages')}: ${stages.length} | ${getTrans('meta.competitors')}: ${filteredAll.length}
       </p>
   `;
 
-  // Get unique divisions
-  const divisions = [...new Set(competitors.map(c => c.division))].sort();
+  // Get unique divisions from filtered data only
+  const divisions = [...new Set(filteredAll.map(c => c.division))].sort();
 
   // Build a table for each division
   divisions.forEach((div, divIdx) => {
-    const competitorsInDiv = competitors
+    const competitorsInDiv = filteredAll
       .filter(c => c.division === div && !c.is_disq)
       .sort((a, b) => (b.total_points_in_division || b.total_points) - (a.total_points_in_division || a.total_points));
     
-    const disqInDiv = competitors.filter(c => c.division === div && c.is_disq);
+    const disqInDiv = filteredAll.filter(c => c.division === div && c.is_disq);
 
-    const activeSorted = competitors.filter(c => c.division === div && !c.is_disq)
+    const activeSorted = filteredAll.filter(c => c.division === div && !c.is_disq)
       .sort((a, b) => (b.total_points_in_division || b.total_points) - (a.total_points_in_division || a.total_points));
     const bestPts = activeSorted[0]?.total_points_in_division || activeSorted[0]?.total_points || 0;
 
