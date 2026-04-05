@@ -128,6 +128,14 @@ def admin_required(f):
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _error_response(message: str, code: str | None = None, http_status: int = 400):
+    """Return a JSON error response conforming to spec/schemas/error.json."""
+    body: dict = {"error": message}
+    if code is not None:
+        body["code"] = code
+    return jsonify(body), http_status
+
+
 def _prepare(cab_path: str) -> dict:
     """Przetwarza plik .cab i zwraca słownik gotowy do serializacji JSON."""
     data = load_data(cab_path)
