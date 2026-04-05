@@ -1,0 +1,8 @@
+# Zależności deweloperskie / testowe — nie instalować w produkcji
+-r requirements.txt
+
+pytest==8.3.5
+pytest-cov==6.1.0
+jsonschema==4.23.0
+schemathesis==3.39.11
+flask[testing]
