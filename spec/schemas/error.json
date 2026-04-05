@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "error.json",
+  "title": "ErrorResponse",
+  "description": "Unified error response returned by all API endpoints on failure.",
+  "type": "object",
+  "required": ["error"],
+  "additionalProperties": false,
+  "properties": {
+    "error": {
+      "type": "string",
+      "description": "Human-readable error message (Polish).",
+      "minLength": 1
+    },
+    "code": {
+      "type": "string",
+      "description": "Optional machine-readable error code (snake_case).",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    }
+  },
+  "examples": [
+    {"error": "Nie znaleziono zawodów"},
+    {"error": "Wymagane zalogowanie", "code": "auth_required"},
+    {"error": "Brak pliku w żądaniu", "code": "missing_file"}
+  ]
+}

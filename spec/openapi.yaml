@@ -1,0 +1,1224 @@
+openapi: "3.1.0"
+
+info:
+  title: IPSC Results Viewer API
+  version: "1.0.0"
+  description: |
+    REST API aplikacji do zarządzania wynikami zawodów IPSC/strzeleckich opartej na Flask + SQLite.
+
+    ## Autentykacja
+    Endpointy pod `/admin/api/*` oraz mutujące operacje na `/api/*` wymagają aktywnej sesji administratora.
+    Sesja jest ustanawiana przez `POST /admin/login` i przechowywana w ciasteczku HTTP-only.
+
+    ## Formaty błędów
+    Wszystkie błędy JSON zwracają ujednolicony obiekt `ErrorResponse`:
+    ```json
+    { "error": "komunikat błędu", "code": "optional_code" }
+    ```
+
+    ## CSRF
+    Wszystkie endpointy zmieniające stan wymagają nagłówka `X-CSRFToken` (z wyjątkiem trybu TESTING).
+
+servers:
+  - url: http://localhost:5000
+    description: Lokalne środowisko deweloperskie
+
+tags:
+  - name: public
+    description: Endpointy publiczne — nie wymagają autentykacji.
+  - name: admin-api
+    description: JSON API panelu administratora — wymagają aktywnej sesji admina.
+  - name: admin-ui
+    description: Endpointy HTML panelu administratora (formularze, przekierowania) — wymagają aktywnej sesji admina.
+
+# ---------------------------------------------------------------------------
+# Reusable components
+# ---------------------------------------------------------------------------
+components:
+  schemas:
+    ErrorResponse:
+      $ref: "./schemas/error.json"
+
+    MatchResult:
+      $ref: "./schemas/match.json"
+
+    Competitor:
+      $ref: "./schemas/competitor.json"
+
+    RankingResponse:
+      $ref: "./schemas/ranking.json"
+
+    StandardDivision:
+      $ref: "./schemas/division.json"
+
+    OkResponse:
+      type: object
+      required: [ok]
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        message:
+          type: string
+
+    MatchSummary:
+      type: object
+      description: Skrócone metadane zawodów zwracane przez GET /api/matches (bez pełnych danych).
+      required:
+        [
+          id,
+          name,
+          date,
+          level,
+          multiplier,
+          created_at,
+          ranking_ids,
+          ranking_names,
+        ]
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        level:
+          type: integer
+          minimum: 1
+          maximum: 5
+        multiplier:
+          type: number
+          minimum: 0
+        created_at:
+          type: string
+          description: SQLite datetime string.
+        ranking_ids:
+          type: array
+          items:
+            type: integer
+        ranking_names:
+          type: string
+          description: "Ranking names joined by ' || ' (may be empty)."
+
+    RankingSummary:
+      type: object
+      description: Skrócone metadane rankingu zwracane przez GET /api/rankings.
+      required:
+        [
+          id,
+          name,
+          top_matches_count,
+          created_at,
+          updated_at,
+          match_count,
+          match_names,
+        ]
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        top_matches_count:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+        updated_at:
+          type: string
+        match_count:
+          type: integer
+          minimum: 0
+        match_names:
+          type: string
+          description: "Match names joined by ' || ' (may be empty)."
+
+    CompetitorSummary:
+      type: object
+      description: Skrócone dane zawodnika zwracane przez GET /admin/api/competitors/{match_id}.
+      required: [comp_id, firstname, lastname, name, division, category]
+      additionalProperties: false
+      properties:
+        comp_id:
+          type: string
+        firstname:
+          type: string
+        lastname:
+          type: string
+        name:
+          type: string
+        division:
+          type: string
+        category:
+          type: string
+
+    DivisionMappingsResponse:
+      type: object
+      required: [standard_divisions, mappings, imported_divisions]
+      additionalProperties: false
+      properties:
+        standard_divisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/StandardDivision"
+        mappings:
+          type: object
+          description: >
+            Map of source_division_name → { mapped_division_id, mapped_division_color }.
+            Per-match when match_id query param is provided; global otherwise.
+          additionalProperties:
+            type: object
+            properties:
+              mapped_division_id:
+                type: [integer, "null"]
+              mapped_division_color:
+                type: [string, "null"]
+        imported_divisions:
+          type: array
+          description: Distinct division names imported from WinMSS files.
+          items:
+            type: string
+
+    StandardDivisionsResponse:
+      type: object
+      required: [standard_divisions]
+      additionalProperties: false
+      properties:
+        standard_divisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/StandardDivision"
+
+    UserSummary:
+      type: object
+      required: [id, username, created_at]
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        username:
+          type: string
+        created_at:
+          type: string
+
+  responses:
+    NotFound:
+      description: Zasób nie został znaleziony.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Nie znaleziono zawodów"
+
+    Unauthorized:
+      description: Wymagane zalogowanie do panelu admina.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Wymagane zalogowanie"
+            code: "auth_required"
+
+    BadRequest:
+      description: Błędne dane wejściowe.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    ServerError:
+      description: Wewnętrzny błąd serwera.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Błąd przetwarzania pliku"
+
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+      description: >
+        Sesja Flask ustanawiana przez POST /admin/login.
+        Wymagana dla wszystkich endpointów oznaczonych jako admin.
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+  # ── Public ────────────────────────────────────────────────────────────────
+
+  /api/matches:
+    get:
+      tags: [public]
+      operationId: listMatches
+      summary: Lista zawodów
+      description: Zwraca skrócone metadane wszystkich zapisanych zawodów, posortowane od najnowszych.
+      responses:
+        "200":
+          description: Lista zawodów.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MatchSummary"
+
+  /api/matches/{matchId}:
+    get:
+      tags: [public]
+      operationId: getMatch
+      summary: Szczegóły zawodów
+      description: Zwraca pełne dane zawodów wraz z aplikowanymi mapowaniami dywizji.
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Pełne dane zawodów.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchResult"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [admin-api]
+      operationId: deleteMatch
+      summary: Usuń zawody
+      description: >
+        Trwale usuwa zawody z bazy danych.
+        Wymaga sesji admina.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Zawody usunięte.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/rankings:
+    get:
+      tags: [public]
+      operationId: listRankings
+      summary: Lista rankingów
+      description: Zwraca skrócone metadane wszystkich rankingów z liczbą przypisanych zawodów.
+      responses:
+        "200":
+          description: Lista rankingów.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RankingSummary"
+
+  /api/rankings/{rankingId}:
+    get:
+      tags: [public]
+      operationId: getRanking
+      summary: Szczegóły rankingu
+      description: >
+        Zwraca pełne dane rankingu wraz z pełnymi danymi wszystkich przypisanych zawodów
+        (z aplikowanymi mapowaniami dywizji i mnożnikami).
+      parameters:
+        - name: rankingId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Pełne dane rankingu.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RankingResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/translations:
+    get:
+      tags: [public]
+      operationId: getTranslations
+      summary: Słownik tłumaczeń
+      description: Zwraca plik JSON z tłumaczeniami UI dla wybranego języka.
+      parameters:
+        - name: lang
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pl, en, de, fr, cz]
+            default: pl
+      responses:
+        "200":
+          description: Obiekt tłumaczeń (struktura zależy od pliku i18n).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/set-language:
+    post:
+      tags: [public]
+      operationId: setLanguage
+      summary: Ustaw język
+      description: Zapisuje wybrany język w ciasteczku (max-age 1 rok).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [language]
+              properties:
+                language:
+                  type: string
+                  enum: [pl, en, de, fr, cz]
+      responses:
+        "200":
+          description: Język ustawiony.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, language]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  language:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/check-local:
+    get:
+      tags: [public]
+      operationId: checkLocalCab
+      summary: Sprawdź obecność WinMSS.cab
+      description: Informuje czy plik WinMSS.cab istnieje w katalogu roboczym serwera.
+      responses:
+        "200":
+          description: Status pliku.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [exists]
+                additionalProperties: false
+                properties:
+                  exists:
+                    type: boolean
+
+  /api/analyze:
+    post:
+      tags: [admin-api]
+      operationId: analyzeUpload
+      summary: Przetwórz i zapisz plik .cab
+      description: >
+        Przyjmuje plik .cab z wynikami WinMSS, przetwarza go przez `_prepare()`,
+        zapisuje w bazie i zwraca pełny wynik zawodów.
+        Wymaga sesji admina. Limit: 100 MB.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Plik .cab z wynikami WinMSS.
+      responses:
+        "200":
+          description: Zawody przetworzone i zapisane.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/analyze-local:
+    get:
+      tags: [admin-api]
+      operationId: analyzeLocal
+      summary: Przetwórz lokalny WinMSS.cab
+      description: >
+        Przetwarza plik WinMSS.cab z katalogu roboczego serwera.
+        Używane głównie przy lokalnym uruchamianiu aplikacji.
+        Wymaga sesji admina.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Zawody przetworzone i zapisane.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  # ── Admin API — Competitors ────────────────────────────────────────────────
+
+  /admin/api/competitors/{matchId}:
+    get:
+      tags: [admin-api]
+      operationId: getCompetitors
+      summary: Lista zawodników zawodów
+      description: Zwraca skrócone dane zawodników (bez wyników etapowych) dla wskazanych zawodów.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Lista zawodników.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [competitors]
+                properties:
+                  competitors:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CompetitorSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      tags: [admin-api]
+      operationId: updateCompetitor
+      summary: Aktualizuj dane zawodnika
+      description: Zmienia imię, nazwisko i opcjonalnie kategorię zawodnika w zapisanych danych zawodów.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comp_id, firstname, lastname]
+              properties:
+                comp_id:
+                  type: string
+                firstname:
+                  type: string
+                  minLength: 1
+                lastname:
+                  type: string
+                  minLength: 1
+                category:
+                  type: string
+                  description: Pusta wartość oznacza brak kategorii.
+      responses:
+        "200":
+          description: Zawodnik zaktualizowany.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/api/competitors/{matchId}/{compId}:
+    delete:
+      tags: [admin-api]
+      operationId: deleteCompetitor
+      summary: Usuń zawodnika z zawodów
+      description: Trwale usuwa zawodnika ze zapisanych danych zawodów (modyfikuje data_json).
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: compId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Zawodnik usunięty.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Admin API — Division Mappings ─────────────────────────────────────────
+
+  /admin/api/divisions-mapping:
+    get:
+      tags: [admin-api]
+      operationId: getDivisionsMapping
+      summary: Pobierz mapowania dywizji
+      description: >
+        Zwraca zestaw danych potrzebnych do UI mapowania dywizji:
+        listę standardowych dywizji, aktualne mapowania (per-match lub globalne)
+        i listę dywizji zaimportowanych z WinMSS.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: match_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: >
+            Gdy podane — zwraca mapowania tylko dla wskazanych zawodów.
+            Bez tego parametru zwraca mapowania globalne.
+      responses:
+        "200":
+          description: Dane mapowań dywizji.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DivisionMappingsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [admin-api]
+      operationId: setDivisionMapping
+      summary: Ustaw/zaktualizuj mapowanie dywizji
+      description: >
+        Tworzy lub aktualizuje mapowanie źródłowej nazwy dywizji (z WinMSS)
+        na standardową dywizję IPSC. Podanie pustego `mapped_division_id`
+        usuwa mapowanie dywizji (zachowując ewentualny kolor).
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [match_id, source_division]
+              properties:
+                match_id:
+                  type: integer
+                  minimum: 1
+                source_division:
+                  type: string
+                  minLength: 1
+                  description: Nazwa dywizji z WinMSS (klucz mapowania).
+                mapped_division_id:
+                  type: [integer, "null"]
+                  description: ID standardowej dywizji. null lub brak = usuń mapowanie ID.
+                mapped_division_color:
+                  type: [string, "null"]
+                  description: Opcjonalny kolor CSS dla UI (np. '#ff0000'). null = usuń kolor.
+      responses:
+        "200":
+          description: Mapowanie zapisane.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /admin/api/divisions-mapping/copy:
+    post:
+      tags: [admin-api]
+      operationId: copyDivisionsMapping
+      summary: Kopiuj mapowania dywizji między zawodami
+      description: >
+        Kopiuje wszystkie mapowania dywizji z jednych zawodów (`source_match_id`)
+        do innych (`target_match_id`). Semantyka: replace — istniejące mapowania
+        w target są nadpisywane.
+        Patrz: `spec/flows/division-mapping.md` — szczegóły semantyki operacji.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_match_id, target_match_id]
+              additionalProperties: false
+              properties:
+                source_match_id:
+                  type: integer
+                  minimum: 1
+                target_match_id:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Mapowania skopiowane.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  # ── Admin API — Standard Divisions ────────────────────────────────────────
+
+  /admin/api/standard-divisions:
+    get:
+      tags: [admin-api]
+      operationId: getStandardDivisions
+      summary: Lista standardowych dywizji
+      description: Zwraca wszystkie standardowe dywizje IPSC z bazy danych.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Lista standardowych dywizji.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardDivisionsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [admin-api]
+      operationId: addStandardDivision
+      summary: Dodaj standardową dywizję
+      description: Tworzy nową standardową dywizję. ID musi być unikalne.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, name]
+              additionalProperties: false
+              properties:
+                id:
+                  type: integer
+                  minimum: 1
+                name:
+                  type: string
+                  minLength: 1
+                description:
+                  type: string
+                  default: ""
+      responses:
+        "200":
+          description: Dywizja dodana.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - type: object
+                    properties:
+                      division:
+                        $ref: "#/components/schemas/StandardDivision"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/api/standard-divisions/{divisionId}:
+    put:
+      tags: [admin-api]
+      operationId: updateStandardDivision
+      summary: Zaktualizuj standardową dywizję
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: divisionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                description:
+                  type: string
+                  default: ""
+      responses:
+        "200":
+          description: Dywizja zaktualizowana.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags: [admin-api]
+      operationId: deleteStandardDivision
+      summary: Usuń standardową dywizję
+      description: >
+        Usuwa standardową dywizję. Operacja jest odrzucana jeśli dywizja
+        jest aktywnie używana w mapowaniach.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: divisionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Dywizja usunięta.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: Usunięcie odrzucone (dywizja używana w mapowaniach lub nie istnieje).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Admin API — Users ──────────────────────────────────────────────────────
+
+  /admin/users:
+    get:
+      tags: [admin-api]
+      operationId: listUsers
+      summary: Lista użytkowników
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Lista użytkowników (bez hashy haseł).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [admin-ui]
+      operationId: createUser
+      summary: Utwórz nowego użytkownika (formularz)
+      description: Przyjmuje dane formularza i przekierowuje z powrotem do panelu admina.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina.
+
+  /admin/users/{userId}:
+    post:
+      tags: [admin-ui]
+      operationId: deleteUser
+      summary: Usuń użytkownika (formularz)
+      description: >
+        Usuwa użytkownika. Odmawia gdy jest to ostatni użytkownik w systemie.
+        Przekierowuje do panelu admina.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina.
+
+  /admin/change-password:
+    post:
+      tags: [admin-ui]
+      operationId: changePassword
+      summary: Zmień hasło zalogowanego użytkownika
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [current_password, new_password, confirm_password]
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+                confirm_password:
+                  type: string
+                  format: password
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina z parametrem success lub error.
+
+  # ── Admin UI — Authentication ──────────────────────────────────────────────
+
+  /admin/login:
+    get:
+      tags: [admin-ui]
+      operationId: adminLoginPage
+      summary: Strona logowania
+      responses:
+        "200":
+          description: Formularz logowania (HTML).
+
+    post:
+      tags: [admin-ui]
+      operationId: adminLoginSubmit
+      summary: Zaloguj administratora
+      description: >
+        Weryfikuje dane logowania. Przy sukcesie ustanawia sesję i przekierowuje
+        do panelu. Przy błędzie zwraca formularz z komunikatem.
+        Ograniczenie: 10 prób na minutę (per IP).
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        "302":
+          description: Logowanie udane — przekierowanie do /admin.
+        "200":
+          description: Logowanie nieudane — formularz z błędem (HTML).
+        "429":
+          description: Zbyt wiele prób logowania.
+
+  /admin/logout:
+    get:
+      tags: [admin-ui]
+      operationId: adminLogout
+      summary: Wyloguj administratora
+      description: Usuwa sesję i przekierowuje do strony logowania.
+      security:
+        - sessionCookie: []
+      responses:
+        "302":
+          description: Przekierowanie do /admin/login.
+
+  # ── Admin UI — Match management ────────────────────────────────────────────
+
+  /admin/upload:
+    post:
+      tags: [admin-ui]
+      operationId: adminUpload
+      summary: Wgraj plik .cab i przypisz do rankingu
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, ranking_id]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                ranking_id:
+                  type: integer
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina z parametrem success lub error.
+
+  /admin/matches/update:
+    post:
+      tags: [admin-ui]
+      operationId: adminUpdateMatch
+      summary: Aktualizuj level, multiplier i rankingi zawodów
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [match_id]
+              properties:
+                match_id:
+                  type: integer
+                level:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                  default: 1
+                multiplier:
+                  type: number
+                  minimum: 0
+                  default: 1.0
+                ranking_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina.
+
+  /admin/matches/assign-rankings:
+    post:
+      tags: [admin-ui]
+      operationId: adminAssignRankings
+      summary: Przypisz rankingi do zawodów (legacy)
+      description: >
+        Zachowany dla wstecznej kompatybilności. Użyj `POST /admin/matches/update`.
+      deprecated: true
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [match_id]
+              properties:
+                match_id:
+                  type: integer
+                multiplier:
+                  type: number
+                  default: 1.0
+                ranking_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina.
+
+  /admin/delete/{matchId}:
+    post:
+      tags: [admin-ui]
+      operationId: adminDeleteMatchForm
+      summary: Usuń zawody (formularz)
+      description: Usuwa zawody i przekierowuje do panelu admina.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina.
+
+  # ── Admin UI — Ranking management ─────────────────────────────────────────
+
+  /admin/rankings:
+    post:
+      tags: [admin-ui]
+      operationId: adminCreateRanking
+      summary: Utwórz nowy ranking
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                top_matches_count:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                  description: >
+                    Liczba najlepszych zawodów branych pod uwagę per zawodnik.
+                    0 oznacza wszystkie zawody.
+                match_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina.
+
+  /admin/rankings/{rankingId}:
+    post:
+      tags: [admin-ui]
+      operationId: adminUpdateRanking
+      summary: Zaktualizuj ranking
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: rankingId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                top_matches_count:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                match_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina.
+
+  /admin/rankings/{rankingId}/delete:
+    post:
+      tags: [admin-ui]
+      operationId: adminDeleteRanking
+      summary: Usuń ranking
+      description: >
+        Odmawia usunięcia gdy ranking ma przypisane zawody.
+        Przekierowuje z komunikatem error lub success.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: rankingId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "302":
+          description: Przekierowanie do panelu admina.
