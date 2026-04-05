@@ -129,6 +129,18 @@ In `docker-compose.yml` you can customize:
 CONTAINER_NAME=my-app PORT=8080 DATA_DIR=./data-custom SECRET_KEY="my-super-secret-key" docker-compose up -d
 ```
 
+**How to generate `SECRET_KEY` for `.env`:**
+```bash
+openssl rand -hex 32
+# or
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Then put the result into `.env` in this format:
+```dotenv
+SECRET_KEY=your_generated_value_here
+```
+
 ## CLI Script (`winmss_results.py`)
 
 Extracts data from `.cab` file and displays results in terminal.

@@ -95,6 +95,18 @@ V `docker-compose.yml` můžete přizpůsobit:
 | `CONTAINER_NAME` | Název Docker kontejneru | `ipsc-app` |
 | `SECRET_KEY` | Klíč relace Flask (**povinný**) | — žádná výchozí hodnota; nastavit v `.env` |
 
+**Jak vygenerovat `SECRET_KEY` pro `.env`:**
+```bash
+openssl rand -hex 32
+# nebo
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Potom výsledek zapište do `.env` v tomto formátu:
+```dotenv
+SECRET_KEY=sem_vložte_vygenerovanou_hodnotu
+```
+
 ## CLI Skript (`winmss_results.py`)
 
 Extrahuje data ze souboru `.cab` a zobrazuje výsledky v terminálu.
