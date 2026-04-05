@@ -128,6 +128,18 @@ W `docker-compose.yml` można dostosować:
 CONTAINER_NAME=my-app PORT=8080 SECRET_KEY="moj-super-tajny-klucz" docker-compose up -d
 ```
 
+**Jak wygenerować `SECRET_KEY` do `.env`:**
+```bash
+openssl rand -hex 32
+# lub
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Następnie wpisz wynik do pliku `.env` w formacie:
+```dotenv
+SECRET_KEY=tu_wklej_wygenerowany_ciag
+```
+
 ## Skrypt CLI (`winmss_results.py`)
 
 Wyciąga dane z pliku `.cab` i wyświetla wyniki w terminalu.

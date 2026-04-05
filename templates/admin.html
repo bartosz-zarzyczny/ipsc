@@ -99,6 +99,7 @@
           <form action="/admin/upload" method="POST" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="row g-3 align-items-end">
+              <div class="col-sm-4">
                 <label class="form-label small fw-semibold">Plik .cab</label>
                 <input type="file" name="file" accept=".cab" class="form-control" required {% if rankings|length == 0 %}disabled{% endif %}>
               </div>
@@ -544,15 +545,22 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+  function showAdminTab(tabName) {
+    const button = document.getElementById(tabName + '-tab');
+    if (!button) {
+      return;
+    }
+
+    const tab = bootstrap.Tab.getOrCreateInstance(button);
+    tab.show();
+  }
+
   window.addEventListener('load', function() {
     const tab = new URLSearchParams(window.location.search).get('tab');
     if (!tab) {
       return;
     }
-    const btn = document.getElementById(tab + '-tab');
-    if (btn) {
-      btn.click();
-    }
+    showAdminTab(tab);
   });
   
   // Inicjalizuj DOM elements dla divisions zaraz po załadowaniu strony
@@ -598,7 +606,7 @@
       }
       
       // Zbuduj tabelę zawodników
-      competitorsList.innerHTML = competitorsToTableRows(matchId, competitors);
+      renderCompetitorsTable(matchId, competitors);
       competitorsContainer.style.display = 'block';
       noCompetitorsMessage.style.display = 'none';
     } catch (err) {
@@ -611,7 +619,38 @@
     return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   }
 
-  function competitorsToTableRows(matchId, competitors) {
+  function createIcon(iconClass) {
+    const icon = document.createElement('i');
+    icon.className = iconClass;
+    return icon;
+  }
+
+  function createActionButton(buttonClass, iconClass, label, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = buttonClass;
+    button.appendChild(createIcon(iconClass));
+    if (label) {
+      button.appendChild(document.createTextNode(` ${label}`));
+    }
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function clearElement(element) {
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
+    }
+  }
+
+  function escapeSelectorValue(value) {
+    if (window.CSS && typeof window.CSS.escape === 'function') {
+      return window.CSS.escape(String(value));
+    }
+    return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  function renderCompetitorsTable(matchId, competitors) {
     // Kategorie domyślne dostępne zawsze
     const defaultCategories = ['Senior', 'Super Senior', 'Grand Senior', 'Junior', 'Lady', 'Senior Lady'];
     
@@ -621,47 +660,94 @@
       if (c.category) categoriesSet.add(c.category);
     });
     const categories = Array.from(categoriesSet).sort();
-    
-    return competitors.map((c, idx) => `
-      <tr>
-        <td>${idx + 1}</td>
-        <td class="text-muted small">${c.comp_id}</td>
-        <td>
-          <input type="text" class="form-control form-control-sm competitor-firstName" 
-                 value="${c.firstname}" data-comp-id="${c.comp_id}" data-match-id="${matchId}" 
-                 placeholder="Imię">
-        </td>
-        <td>
-          <input type="text" class="form-control form-control-sm competitor-lastName" 
-                 value="${c.lastname}" data-comp-id="${c.comp_id}" data-match-id="${matchId}" 
-                 placeholder="Nazwisko">
-        </td>
-        <td>${c.division}</td>
-        <td>
-          <select class="form-control form-control-sm competitor-category" 
-                  data-comp-id="${c.comp_id}" data-match-id="${matchId}">
-            <option value=""></option>
-            ${categories.map(cat => `<option value="${cat}" ${c.category === cat ? 'selected' : ''}>${cat}</option>`).join('')}
-          </select>
-        </td>
-        <td class="text-end">
-          <button type="button" class="btn btn-sm btn-success" 
-                  onclick="saveCompetitor('${matchId}', '${c.comp_id}')">
-            <i class="bi bi-check-lg"></i> Zapisz
-          </button>
-          <button type="button" class="btn btn-sm btn-danger" 
-                  onclick="deleteCompetitor('${matchId}', '${c.comp_id}', '${(c.firstname + ' ' + c.lastname).replace(/'/g, '')}')">
-            <i class="bi bi-trash"></i> Usuń
-          </button>
-        </td>
-      </tr>
-    `).join('');
+
+    clearElement(competitorsList);
+
+    competitors.forEach((c, idx) => {
+      const row = document.createElement('tr');
+
+      const indexCell = document.createElement('td');
+      indexCell.textContent = String(idx + 1);
+      row.appendChild(indexCell);
+
+      const compIdCell = document.createElement('td');
+      compIdCell.className = 'text-muted small';
+      compIdCell.textContent = String(c.comp_id ?? '');
+      row.appendChild(compIdCell);
+
+      const firstNameCell = document.createElement('td');
+      const firstNameInput = document.createElement('input');
+      firstNameInput.type = 'text';
+      firstNameInput.className = 'form-control form-control-sm competitor-firstName';
+      firstNameInput.value = c.firstname || '';
+      firstNameInput.dataset.compId = String(c.comp_id ?? '');
+      firstNameInput.dataset.matchId = String(matchId);
+      firstNameInput.placeholder = 'Imię';
+      firstNameCell.appendChild(firstNameInput);
+      row.appendChild(firstNameCell);
+
+      const lastNameCell = document.createElement('td');
+      const lastNameInput = document.createElement('input');
+      lastNameInput.type = 'text';
+      lastNameInput.className = 'form-control form-control-sm competitor-lastName';
+      lastNameInput.value = c.lastname || '';
+      lastNameInput.dataset.compId = String(c.comp_id ?? '');
+      lastNameInput.dataset.matchId = String(matchId);
+      lastNameInput.placeholder = 'Nazwisko';
+      lastNameCell.appendChild(lastNameInput);
+      row.appendChild(lastNameCell);
+
+      const divisionCell = document.createElement('td');
+      divisionCell.textContent = c.division || '';
+      row.appendChild(divisionCell);
+
+      const categoryCell = document.createElement('td');
+      const categorySelect = document.createElement('select');
+      categorySelect.className = 'form-control form-control-sm competitor-category';
+      categorySelect.dataset.compId = String(c.comp_id ?? '');
+      categorySelect.dataset.matchId = String(matchId);
+
+      const emptyOption = document.createElement('option');
+      emptyOption.value = '';
+      categorySelect.appendChild(emptyOption);
+
+      categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        option.selected = c.category === cat;
+        categorySelect.appendChild(option);
+      });
+
+      categoryCell.appendChild(categorySelect);
+      row.appendChild(categoryCell);
+
+      const actionsCell = document.createElement('td');
+      actionsCell.className = 'text-end';
+      const fullName = `${c.firstname || ''} ${c.lastname || ''}`.trim();
+
+      actionsCell.appendChild(
+        createActionButton('btn btn-sm btn-success', 'bi bi-check-lg', 'Zapisz', () => {
+          saveCompetitor(String(matchId), String(c.comp_id ?? ''));
+        })
+      );
+      actionsCell.appendChild(document.createTextNode(' '));
+      actionsCell.appendChild(
+        createActionButton('btn btn-sm btn-danger', 'bi bi-trash', 'Usuń', () => {
+          deleteCompetitor(String(matchId), String(c.comp_id ?? ''), fullName);
+        })
+      );
+
+      row.appendChild(actionsCell);
+      competitorsList.appendChild(row);
+    });
   }
   
   async function saveCompetitor(matchId, compId) {
-    const firstNameInput = document.querySelector(`input.competitor-firstName[data-comp-id="${compId}"]`);
-    const lastNameInput = document.querySelector(`input.competitor-lastName[data-comp-id="${compId}"]`);
-    const categorySelect = document.querySelector(`select.competitor-category[data-comp-id="${compId}"]`);
+    const safeCompId = escapeSelectorValue(compId);
+    const firstNameInput = document.querySelector(`input.competitor-firstName[data-comp-id="${safeCompId}"]`);
+    const lastNameInput = document.querySelector(`input.competitor-lastName[data-comp-id="${safeCompId}"]`);
+    const categorySelect = document.querySelector(`select.competitor-category[data-comp-id="${safeCompId}"]`);
     
     if (!firstNameInput || !lastNameInput) {
       alert('Nie znaleziono pol do edycji');
@@ -875,7 +961,9 @@
       }
       
       noDivisionsMessage.style.display = 'none';
-      divisionsMappingList.innerHTML = divisions.map(div => {
+      clearElement(divisionsMappingList);
+
+      divisions.forEach(div => {
         const mappingInfo = currentMappings[div] || {};
         const mappedId = mappingInfo.mapped_division_id;
         const mappedColor = mappingInfo.color || getRandomDivisionColor();
@@ -885,31 +973,57 @@
         console.log(`🔨 Building row for: ${div}, mappedId: ${mappedId}, mappedName: ${mappedName}, color: ${mappedColor}`);
         console.log(`   Available divisions for options: ${availableDivisions.length}`);
 
-        const optionsHTML = availableDivisions.map(stdDiv => {
-          const selected = mappedId && (mappedId == stdDiv.id || parseInt(mappedId) == stdDiv.id) ? 'selected' : '';
-          return `<option value="${stdDiv.id}" ${selected}>${stdDiv.name}</option>`;
-        }).join('');
-        
-        return `
-          <tr>
-            <td class="fw-semibold">${div}</td>
-            <td>
-              <select class="form-select form-select-sm division-mapping-select" data-source="${div}" onchange="updateDivisionMapping(this)">
-                <option value="">— brak mapowania —</option>
-                ${optionsHTML}
-              </select>
-            </td>
-            <td>
-              <input type="color" class="form-control form-control-color form-control-sm division-color-input" data-source="${div}" value="${mappedColor}" onchange="updateDivisionMapping(this)" title="Wybierz kolor oznaczenia dywizji" />
-            </td>
-            <td class="text-end">
-              <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearDivisionMapping('${div}')">
-                <i class="bi bi-x-lg"></i> Wyczyść
-              </button>
-            </td>
-          </tr>
-        `;
-      }).join('');
+        const row = document.createElement('tr');
+
+        const sourceCell = document.createElement('td');
+        sourceCell.className = 'fw-semibold';
+        sourceCell.textContent = div;
+        row.appendChild(sourceCell);
+
+        const selectCell = document.createElement('td');
+        const select = document.createElement('select');
+        select.className = 'form-select form-select-sm division-mapping-select';
+        select.dataset.source = div;
+        select.addEventListener('change', () => updateDivisionMapping(select));
+
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = '— brak mapowania —';
+        select.appendChild(emptyOption);
+
+        availableDivisions.forEach(stdDiv => {
+          const option = document.createElement('option');
+          option.value = String(stdDiv.id);
+          option.textContent = stdDiv.name;
+          option.selected = Boolean(mappedId) && (mappedId == stdDiv.id || parseInt(mappedId, 10) == stdDiv.id);
+          select.appendChild(option);
+        });
+
+        selectCell.appendChild(select);
+        row.appendChild(selectCell);
+
+        const colorCell = document.createElement('td');
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.className = 'form-control form-control-color form-control-sm division-color-input';
+        colorInput.dataset.source = div;
+        colorInput.value = mappedColor;
+        colorInput.title = 'Wybierz kolor oznaczenia dywizji';
+        colorInput.addEventListener('change', () => updateDivisionMapping(colorInput));
+        colorCell.appendChild(colorInput);
+        row.appendChild(colorCell);
+
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'text-end';
+        actionsCell.appendChild(
+          createActionButton('btn btn-sm btn-outline-danger', 'bi bi-x-lg', 'Wyczyść', () => {
+            clearDivisionMapping(div);
+          })
+        );
+        row.appendChild(actionsCell);
+
+        divisionsMappingList.appendChild(row);
+      });
       
       console.log('✓ Selectorami zbudowane pomyślnie');
       divisionsContainer.style.display = 'block';
@@ -1094,8 +1208,8 @@
   window.clearDivisionMapping = clearDivisionMapping;
   window.saveAllDivisionMappings = saveAllDivisionMappings;
   
-  // Wczytaj mapowania dywizji gdy zakładka się załaduje
-  document.getElementById('divisions-tab').addEventListener('click', function() {
+  // Wczytaj mapowania dywizji gdy zakładka się pokaże
+  document.getElementById('divisions-tab').addEventListener('shown.bs.tab', function() {
     initializeDOMElements();
     initializeDivisionsTab();
   });
@@ -1120,22 +1234,45 @@
         loadingMsg.style.display = 'none';
         return;
       }
-      
-      table.innerHTML = divisions.map(div => `
-        <tr>
-          <td class="fw-semibold">#${div.id}</td>
-          <td>${div.name}</td>
-          <td><small class="text-muted">${div.description || '—'}</small></td>
-          <td class="text-end">
-            <button type="button" class="btn btn-sm btn-outline-warning" onclick="editDivision(${div.id}, '${div.name.replace(/'/g, "\\'")}', '${(div.description || '').replace(/'/g, "\\'")}')">
-              <i class="bi bi-pencil"></i>
-            </button>
-            <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmDeleteDivision(${div.id}, '${div.name.replace(/'/g, "\\'")}')">
-              <i class="bi bi-trash"></i>
-            </button>
-          </td>
-        </tr>
-      `).join('');
+
+      clearElement(table);
+
+      divisions.forEach(div => {
+        const row = document.createElement('tr');
+
+        const idCell = document.createElement('td');
+        idCell.className = 'fw-semibold';
+        idCell.textContent = `#${div.id}`;
+        row.appendChild(idCell);
+
+        const nameCell = document.createElement('td');
+        nameCell.textContent = div.name;
+        row.appendChild(nameCell);
+
+        const descriptionCell = document.createElement('td');
+        const descriptionSmall = document.createElement('small');
+        descriptionSmall.className = 'text-muted';
+        descriptionSmall.textContent = div.description || '—';
+        descriptionCell.appendChild(descriptionSmall);
+        row.appendChild(descriptionCell);
+
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'text-end';
+        actionsCell.appendChild(
+          createActionButton('btn btn-sm btn-outline-warning', 'bi bi-pencil', '', () => {
+            editDivision(div.id, div.name, div.description || '');
+          })
+        );
+        actionsCell.appendChild(document.createTextNode(' '));
+        actionsCell.appendChild(
+          createActionButton('btn btn-sm btn-outline-danger', 'bi bi-trash', '', () => {
+            confirmDeleteDivision(div.id, div.name);
+          })
+        );
+        row.appendChild(actionsCell);
+
+        table.appendChild(row);
+      });
       
       loadingMsg.style.display = 'none';
     } catch (err) {
@@ -1247,8 +1384,8 @@
     }
   }
   
-  // Załaduj dywizje gdy zakładka się otworzy
-  document.getElementById('standard-divisions-tab').addEventListener('click', function() {
+  // Załaduj dywizje gdy zakładka się pokaże
+  document.getElementById('standard-divisions-tab').addEventListener('shown.bs.tab', function() {
     loadStandardDivisions();
   });
   
