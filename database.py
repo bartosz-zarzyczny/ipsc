@@ -6,9 +6,11 @@ SQLite database for persisting match results.
 from __future__ import annotations
 import json
 import os
+import secrets
 import sqlite3
 import uuid
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -204,10 +206,10 @@ def init_db() -> None:
         
         # Dodaj domyślnego użytkownika jeśli baza jest nowa
         if not list_users():
-            import hashlib
-            default_hash = hashlib.sha256(b"IP$c2023").hexdigest()
-            add_user("bartek", default_hash)
-            print(f"✓ Domyślny użytkownik 'bartek' utworzony")
+            random_password = secrets.token_urlsafe(16)
+            add_user("admin", raw_password=random_password)
+            print(f"✓ Domyślny użytkownik 'admin' utworzony")
+            print(f"✓ Hasło startowe: {random_password}  ← zmień po pierwszym logowaniu!")
     
     except Exception as e:
         print(f"✗ Błąd inicjalizacji bazy: {e}")
@@ -519,12 +521,13 @@ def update_match_level(match_id: int, level: int = 1) -> bool:
 # User management
 # ---------------------------------------------------------------------------
 
-def add_user(username: str, password_hash: str) -> int:
-    """Add a new user. Returns user id."""
+def add_user(username: str, raw_password: str) -> int:
+    """Add a new user. Hashes the password with PBKDF2. Returns user id."""
+    pwd_hash = generate_password_hash(raw_password, method="pbkdf2:sha256")
     conn = get_db()
     cur = conn.execute(
         "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-        (username, password_hash),
+        (username, pwd_hash),
     )
     user_id = cur.lastrowid
     conn.commit()
@@ -532,9 +535,10 @@ def add_user(username: str, password_hash: str) -> int:
     return user_id
 
 
-def verify_user(username: str, password_hash: str) -> int | None:
-    """Verify if username/password matches. Returns user_id if valid, None otherwise. Uses timing-safe comparison."""
-    import hmac
+def verify_user(username: str, raw_password: str) -> int | None:
+    """Verify username/password. Supports werkzeug hashes and legacy SHA-256.
+    Auto-upgrades legacy hashes to werkzeug PBKDF2 on successful login."""
+    import hashlib, hmac as _hmac
     conn = get_db()
     row = conn.execute(
         "SELECT id, password_hash FROM users WHERE username = ?", (username,)
@@ -543,8 +547,23 @@ def verify_user(username: str, password_hash: str) -> int | None:
     if row is None:
         return None
     stored_hash = row["password_hash"]
-    if hmac.compare_digest(password_hash, stored_hash):
-        return row["id"]
+    user_id = row["id"]
+
+    # Modern werkzeug hash (starts with 'pbkdf2:', 'scrypt:', etc.)
+    if ":" in stored_hash:
+        if check_password_hash(stored_hash, raw_password):
+            return user_id
+        return None
+
+    # Legacy: 64-char hex SHA-256 — verify and auto-upgrade
+    sha_hash = hashlib.sha256(raw_password.encode()).hexdigest()
+    if _hmac.compare_digest(sha_hash, stored_hash):
+        new_hash = generate_password_hash(raw_password, method="pbkdf2:sha256")
+        upgrade_conn = get_db()
+        upgrade_conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, user_id))
+        upgrade_conn.commit()
+        upgrade_conn.close()
+        return user_id
     return None
 
 
@@ -572,10 +591,11 @@ def delete_user(user_id: int) -> bool:
     return deleted
 
 
-def change_password(user_id: int, password_hash: str) -> bool:
-    """Change user's password. Returns True if successful."""
+def change_password(user_id: int, raw_password: str) -> bool:
+    """Change user's password. Hashes with PBKDF2. Returns True if successful."""
+    pwd_hash = generate_password_hash(raw_password, method="pbkdf2:sha256")
     conn = get_db()
-    cur = conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id))
+    cur = conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (pwd_hash, user_id))
     conn.commit()
     updated = cur.rowcount > 0
     conn.close()

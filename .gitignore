@@ -1,5 +1,9 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+
+# Secrets
+.env
+
 *.py[codz]
 *$py.class
 
@@ -214,4 +218,7 @@ wyniki-pp-2025.txt
 # Database and configuration files
 data/*
 !data/.gitkeep
+
+# Local readme file
+README_SEC.md
 

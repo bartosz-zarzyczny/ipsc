@@ -11,7 +11,7 @@ services:
       - ./WinMSS.cab:/app/WinMSS.cab:ro
     environment:
       - FLASK_ENV=production
-      - SECRET_KEY=${SECRET_KEY:-default-secret-key-change-me}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY env variable is required}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000"]

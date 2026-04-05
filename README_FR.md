@@ -14,6 +14,8 @@ Un outil pour extraire et afficher les résultats des compétitions de tir IPSC 
 ├── database.py                   # Couche de base de données (ORM)
 ├── docker-compose.yml            # Configuration Docker Compose
 ├── Dockerfile                    # Spécification du conteneur
+├── .env                          # Variables d'environnement (SECRET_KEY – NE PAS committer dans le dépôt)
+├── .env_copy                     # Modèle pour .env (copier comme .env et remplir)
 ├── static/i18n/                  # Fichiers de traduction (support multilingue)
 └── templates/
     ├── index.html                # Frontend (navigateur de résultats)
@@ -91,7 +93,7 @@ Dans `docker-compose.yml` vous pouvez personnaliser:
 | `PORT` | Port hôte pour mappage | `3000` |
 | `DATA_DIR` | Répertoire de données pour base de données | `./data` |
 | `CONTAINER_NAME` | Nom du conteneur Docker | `ipsc-app` |
-| `SECRET_KEY` | Clé de session Flask (SHA-256) | `default-secret-key-change-me` |
+| `SECRET_KEY` | Clé de session Flask (**requise**) | — pas de défaut; définir dans `.env` |
 
 ## Script CLI (`winmss_results.py`)
 
@@ -102,8 +104,15 @@ Extrait les données du fichier `.cab` et affiche les résultats dans le termina
 ### Panneau d'administration
 
 **Compte par défaut:**
-- **Nom d'utilisateur:** `bartek`
-- **Mot de passe:** `IP$c2023` (CHANGEZ-LE APRÈS LA PREMIÈRE CONNEXION!)
+- **Nom d'utilisateur:** `admin`
+- **Mot de passe:** généré aléatoirement au premier démarrage — affiché une fois dans les logs.
+
+```bash
+# Afficher le mot de passe de démarrage:
+docker-compose logs | grep "startowe"
+```
+
+> Changez votre mot de passe après la première connexion: panneau Admin → onglet Utilisateurs.
 
 #### Nouvelles fonctionnalités
 
@@ -240,7 +249,7 @@ Dans `docker-compose.yml`, vous pouvez personnaliser :
 |----------|-----------|---------|
 | `PORT` | Mappage de port hôte | `3001` |
 | `CONTAINER_NAME` | Nom du conteneur Docker | `ipsc-app` |
-| `SECRET_KEY` | Clé de session Flask (SHA-256) | `default-secret-key-change-me` |
+| `SECRET_KEY` | Clé de session Flask (**requise**) | — pas de défaut; définir dans `.env` |
 
 **Exemple:**
 ```bash

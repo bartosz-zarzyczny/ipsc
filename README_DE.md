@@ -14,6 +14,8 @@ Ein Tool zum Extrahieren und Anzeigen von IPSC-Schießwettkampfergebnissen aus W
 ├── database.py                   # Datenbankebene (ORM)
 ├── docker-compose.yml            # Docker Compose-Konfiguration
 ├── Dockerfile                    # Container-Spezifikation
+├── .env                          # Umgebungsvariablen (SECRET_KEY – NICHT ins Repository committen)
+├── .env_copy                     # Vorlage für .env (als .env kopieren und ausfüllen)
 ├── static/i18n/                  # Übersetzungsdateien (Mehrsprachigkeit)
 └── templates/
     ├── index.html                # Frontend (Ergebnisanzeige)
@@ -91,7 +93,7 @@ In `docker-compose.yml` können Sie anpassen:
 | `PORT` | Host-Port für Zuordnung | `3000` |
 | `DATA_DIR` | Datenverzeichnis für Datenbank | `./data` |
 | `CONTAINER_NAME` | Docker-Container-Name | `ipsc-app` |
-| `SECRET_KEY` | Flask-Session-Schlüssel (SHA-256) | `default-secret-key-change-me` |
+| `SECRET_KEY` | Flask-Session-Schlüssel (**erforderlich**) | — kein Standard; in `.env` setzen |
 
 ## CLI-Skript (`winmss_results.py`)
 
@@ -102,8 +104,15 @@ Extrahiert Daten aus `.cab`-Datei und zeigt Ergebnisse im Terminal an.
 ### Admin-Panel
 
 **Standard-Konto:**
-- **Benutzername:** `bartek`
-- **Passwort:** `IP$c2023` (NACH ERSTER ANMELDUNG ÄNDERN!)
+- **Benutzername:** `admin`
+- **Passwort:** wird beim ersten Start zufällig generiert — einmalig in den Logs ausgegeben.
+
+```bash
+# Startpasswort anzeigen:
+docker-compose logs | grep "startowe"
+```
+
+> Ändern Sie das Passwort nach dem ersten Login: Admin-Panel → Benutzer-Tab.
 
 #### Neue Funktionalitäten
 
