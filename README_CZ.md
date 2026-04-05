@@ -14,6 +14,8 @@ Nástroj pro extrakci a prohlížení výsledků střeleckých soutěží IPSC z
 ├── database.py                   # Vrstva databáze (ORM)
 ├── docker-compose.yml            # Konfigurace Docker Compose
 ├── Dockerfile                    # Specifikace kontejneru
+├── .env                          # Proměnné prostředí (SECRET_KEY – NECOMMITOVAT do repozitáře)
+├── .env_copy                     # Šablona pro .env (zkopírovat jako .env a vyplnit)
 ├── static/i18n/                  # Soubory překladů (multilingvální podpora)
 └── templates/
     ├── index.html                # Frontend (prohlížeč výsledků)
@@ -91,7 +93,7 @@ V `docker-compose.yml` můžete přizpůsobit:
 | `PORT` | Port hostitele pro mapování | `3000` |
 | `DATA_DIR` | Datový adresář pro databázi | `./data` |
 | `CONTAINER_NAME` | Název Docker kontejneru | `ipsc-app` |
-| `SECRET_KEY` | Klíč relace Flask (SHA-256) | `default-secret-key-change-me` |
+| `SECRET_KEY` | Klíč relace Flask (**povinný**) | — žádná výchozí hodnota; nastavit v `.env` |
 
 ## CLI Skript (`winmss_results.py`)
 
@@ -102,8 +104,15 @@ Extrahuje data ze souboru `.cab` a zobrazuje výsledky v terminálu.
 ### Administrátorský panel
 
 **Výchozí účet:**
-- **Uživatelské jméno:** `bartek`
-- **Heslo:** `IP$c2023` (ZMĚŇTE PO PRVNÍM PŘIHLÁŠENÍ!)
+- **Uživatelské jméno:** `admin`
+- **Heslo:** generováno náhodně při prvním spuštění — jednou vypsáno v logu.
+
+```bash
+# Zobrazit startovací heslo:
+docker-compose logs | grep "startowe"
+```
+
+> Po prvním přihlášení změňte heslo: Admin panel → záložka Uživatelé.
 
 #### Nové funkcionality
 
@@ -220,7 +229,7 @@ V `docker-compose.yml` můžete přizpůsobit:
 |---------|------|----------|
 | `PORT` | Mapování portu hostitele | `3001` |
 | `CONTAINER_NAME` | Název Docker kontejneru | `ipsc-app` |
-| `SECRET_KEY` | Klíč relace Flask (SHA-256) | `default-secret-key-change-me` |
+| `SECRET_KEY` | Klíč relace Flask (**povinný**) | — žádná výchozí hodnota; nastavit v `.env` |
 
 **Příklad:**
 ```bash

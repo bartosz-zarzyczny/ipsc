@@ -14,6 +14,8 @@ A tool for extracting and viewing IPSC shooting competition results from WinMSS 
 ├── database.py                   # Database layer (ORM)
 ├── docker-compose.yml            # Docker Compose configuration
 ├── Dockerfile                    # Container specification
+├── .env                          # Environment variables (SECRET_KEY – do NOT commit to repo)
+├── .env_copy                     # Template for .env (copy as .env and fill in)
 ├── static/i18n/                  # Translation files (multilingual support)
 └── templates/
     ├── index.html                # Frontend (results browser)
@@ -120,7 +122,7 @@ In `docker-compose.yml` you can customize:
 | `PORT` | Host port for mapping | `3000` |
 | `DATA_DIR` | Data directory for database | `./data` |
 | `CONTAINER_NAME` | Docker container name | `ipsc-app` |
-| `SECRET_KEY` | Flask session key (SHA-256) | `default-secret-key-change-me` |
+| `SECRET_KEY` | Flask session key (**required**) | — no default; set in `.env` |
 
 **Example:**
 ```bash
@@ -161,7 +163,7 @@ Access to the admin panel requires login.
 - **Username:** `bartek`
 - **Password:** `IP$c2023` (CHANGE IT AFTER FIRST LOGIN!)
 
-User accounts are stored in SQLite database (`{instance_id}.db`) with SHA-256 protection.
+User accounts are stored in SQLite database (`{instance_id}.db`) with PBKDF2-SHA256 protection.
 
 ### Main Page — Results Browser
 
@@ -402,7 +404,7 @@ In `docker-compose.yml` you can customize:
 |----------|-------------|---------|
 | `PORT` | Host port mapping | `3001` |
 | `CONTAINER_NAME` | Docker container name | `ipsc-app` |
-| `SECRET_KEY` | Flask session key (SHA-256) | `default-secret-key-change-me` |
+| `SECRET_KEY` | Flask session key (**required**) | — no default; set in `.env` |
 
 **Example:**
 ```bash
@@ -440,8 +442,15 @@ python3 winmss_results.py other_match.cab --csv results.csv
 Access to the admin panel requires login.
 
 **Default account:**
-- **Login:** `bartek`
-- **Password:** `IP$c2023` (CHANGE IT AFTER FIRST LOGIN!)
+- **Login:** `admin`
+- **Password:** randomly generated on first launch — printed once in the logs.
+
+```bash
+# View the startup password:
+docker-compose logs | grep "startowe"
+```
+
+> Change your password after first login: Admin panel → Users tab.
 
 User accounts are stored in SQLite database with SHA-256 hashing.
 

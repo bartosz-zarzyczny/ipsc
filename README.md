@@ -14,6 +14,8 @@ Narzędzie do wyciągania i przeglądania wyników zawodów strzeleckich IPSC z 
 ├── database.py                   # Warstwa bazy danych (ORM)
 ├── docker-compose.yml            # Konfiguracja Docker Compose
 ├── Dockerfile                    # Specyfikacja kontenera
+├── .env                          # Zmienne środowiskowe (SECRET_KEY – NIE commitować do repo)
+├── .env_copy                     # Szablon pliku .env (skopiuj jako .env i uzupełnij)
 ├── static/i18n/                  # Pliki tłumaczeń (wielojęzyczność)
 └── templates/
     ├── index.html                # Frontend (przeglądarka wyników)
@@ -119,7 +121,7 @@ W `docker-compose.yml` można dostosować:
 |---------|------|----------|
 | `PORT` | Port hosta do mapowania | `3001` |
 | `CONTAINER_NAME` | Nazwa kontenera Docker | `ipsc-app` |
-| `SECRET_KEY` | Klucz sesji Flask (SHA-256) | `default-secret-key-change-me` |
+| `SECRET_KEY` | Klucz sesji Flask (**wymagany**) | — brak domyślnego; ustaw w `.env` |
 
 **Przykład:**
 ```bash
@@ -157,10 +159,17 @@ python3 winmss_results.py inny_mecz.cab --csv wyniki.csv
 Dostęp do panelu administracyjnego wymaga zalogowania się.
 
 **Konto domyślne:**
-- **Login:** `bartek`
-- **Hasło:** `IP$c2023` (ZMIEŃ JE PO PIERWSZYM LOGOWANIU!)
+- **Login:** `admin`
+- **Hasło:** generowane losowo przy pierwszym uruchomieniu — wypisywane jednorazowo w logach.
 
-Konta użytkowników przechowywane są w bazie danych SQLite (`ipsc.db`) z zabezpieczeniem SHA-256.
+```bash
+# Podejrzyj hasło startowe:
+docker-compose logs | grep "Hasło startowe"
+```
+
+> Zmień hasło po pierwszym logowaniu: panel Admin → zakładka Użytkownicy.
+
+Konta użytkowników przechowywane są w bazie danych SQLite (`ipsc.db`) z zabezpieczeniem PBKDF2-SHA256.
 
 ### Główna strona — przeglądarka wyników
 
@@ -427,7 +436,7 @@ W `docker-compose.yml` można dostosować:
 |---------|------|----------|
 | `PORT` | Port hosta do mapowania | `3001` |
 | `CONTAINER_NAME` | Nazwa kontenera Docker | `ipsc-app` |
-| `SECRET_KEY` | Klucz sesji Flask (SHA-256) | `default-secret-key-change-me` |
+| `SECRET_KEY` | Klucz sesji Flask (**wymagany**) | — brak domyślnego; ustaw w `.env` |
 
 **Przykład:**
 ```bash
@@ -468,7 +477,7 @@ Dostęp do panelu administracyjnego wymaga zalogowania się.
 - **Login:** `bartek`
 - **Hasło:** `IP$c2023` (ZMIEŃ JE PO PIERWSZYM LOGOWANIU!)
 
-Konta użytkowników przechowywane są w bazie danych SQLite (`ipsc.db`) z zabezpieczeniem SHA-256.
+Konta użytkowników przechowywane są w bazie danych SQLite (`ipsc.db`) z zabezpieczeniem PBKDF2-SHA256.
 
 ### Główna strona — przeglądarka wyników
 

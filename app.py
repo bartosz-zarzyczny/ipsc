@@ -7,8 +7,6 @@ Otwórz:   http://localhost:5000
 """
 
 from __future__ import annotations
-import hashlib
-import hmac
 import json
 import os
 import secrets
@@ -17,6 +15,9 @@ import threading
 import webbrowser
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from winmss_results import (
     load_data, build_results, rank_competitors, add_percent_of_best
@@ -61,6 +62,14 @@ from database import (
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+
+csrf = CSRFProtect(app)
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri="memory://",
+)
 
 SUPPORTED_LANGUAGES = ("pl", "en", "de", "fr", "cz")
 
@@ -287,6 +296,7 @@ def index():
 
 
 @app.route("/api/analyze", methods=["POST"])
+@admin_required
 def analyze():
     if "file" not in request.files:
         return jsonify({"error": "Brak pliku w żądaniu"}), 400
@@ -305,12 +315,14 @@ def analyze():
         result["match"]["id"] = match_id
         return jsonify(result)
     except Exception as exc:
-        return jsonify({"error": f"Błąd przetwarzania: {exc}"}), 500
+        app.logger.error("analyze error: %s", exc)
+        return jsonify({"error": "Błąd przetwarzania pliku"}), 500
     finally:
         os.unlink(tmp.name)
 
 
 @app.route("/api/analyze-local")
+@admin_required
 def analyze_local():
     """Analizuje WinMSS.cab z katalogu roboczego."""
     path = os.path.join(os.getcwd(), "WinMSS.cab")
@@ -322,7 +334,8 @@ def analyze_local():
         result["match"]["id"] = match_id
         return jsonify(result)
     except Exception as exc:
-        return jsonify({"error": f"Błąd przetwarzania: {exc}"}), 500
+        app.logger.error("analyze-local error: %s", exc)
+        return jsonify({"error": "Błąd przetwarzania pliku"}), 500
 
 
 @app.route("/api/check-local")
@@ -391,12 +404,12 @@ def api_get_ranking(ranking_id):
 # ---------------------------------------------------------------------------
 
 @app.route("/admin/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def admin_login():
     if request.method == "POST":
         user = request.form.get("username", "")
         pwd  = request.form.get("password", "")
-        pwd_hash = hashlib.sha256(pwd.encode()).hexdigest()
-        user_id = verify_user(user, pwd_hash)
+        user_id = verify_user(user, pwd)
         if user_id is not None:
             session["admin"] = True
             session["username"] = user
@@ -585,8 +598,7 @@ def admin_create_user():
         return redirect(url_for("admin_panel"))
     
     try:
-        pwd_hash = hashlib.sha256(password.encode()).hexdigest()
-        add_user(username, pwd_hash)
+        add_user(username, password)
     except Exception:
         pass  # Username already exists or other error
     
@@ -634,17 +646,15 @@ def admin_change_password():
         return redirect(url_for("admin_panel") + "?tab=users&error=B%C5%82%C4%85d+sesji")
     
     # Verify current password
-    current_hash = hashlib.sha256(current_pwd.encode()).hexdigest()
-    verify_result = verify_user(username, current_hash)
+    verify_result = verify_user(username, current_pwd)
     if verify_result is None:
         return redirect(url_for("admin_panel") + "?tab=users&error=Nieprawid%C5%82owe+has%C5%82o")
     
     # Update password
-    new_hash = hashlib.sha256(new_pwd.encode()).hexdigest()
-    if change_password(user_id, new_hash):
+    if change_password(user_id, new_pwd):
         return redirect(url_for("admin_panel") + "?tab=users&success=Has%C5%82o+zmienione")
     else:
-        print(f"[ERROR] Zmiana hasła nie powiodła się. user_id={user_id}")
+        app.logger.error("Zmiana hasła nie powiodła się. user_id=%s", user_id)
         return redirect(url_for("admin_panel") + "?tab=users&error=Nie+uda%C5%82o+si%C4%99+zmieni%C4%87+has%C5%82a")
 
 
