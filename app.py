@@ -61,6 +61,8 @@ from database import (
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 csrf = CSRFProtect(app)
@@ -419,6 +421,7 @@ def admin_login():
         pwd  = request.form.get("password", "")
         user_id = verify_user(user, pwd)
         if user_id is not None:
+            session.clear()
             session["admin"] = True
             session["username"] = user
             session["user_id"] = user_id
@@ -429,9 +432,7 @@ def admin_login():
 
 @app.route("/admin/logout")
 def admin_logout():
-    session.pop("admin", None)
-    session.pop("username", None)
-    session.pop("user_id", None)
+    session.clear()
     return redirect(url_for("admin_login"))
 
 

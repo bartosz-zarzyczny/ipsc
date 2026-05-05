@@ -1,0 +1,4 @@
+## 2026-05-05 - Session Fixation and Missing HTTPOnly/SameSite Cookie Security
+**Vulnerability:** The Flask web application was missing standard cookie security attributes (`SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SAMESITE`) and did not clear the session appropriately on logout/login to prevent session fixation.
+**Learning:** In Flask, just setting the secret key and deleting individual keys from `session` using `pop()` is not sufficient to fully clear and invalidate the user session or securely transmit it. The entire session should be cleared using `session.clear()` upon authentication boundary crossings (e.g. login, logout).
+**Prevention:** Configure Flask `app.config` to include `app.config["SESSION_COOKIE_HTTPONLY"] = True`, `app.config["SESSION_COOKIE_SAMESITE"] = "Lax"` (or "Strict"), and use `session.clear()` during login/logout logic.
