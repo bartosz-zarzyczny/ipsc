@@ -1,0 +1,4 @@
+## 2026-05-08 - [HIGH] Fix Insecure Session Management
+**Vulnerability:** The Flask application previously utilized session cookies without `SESSION_COOKIE_HTTPONLY` and `SESSION_COOKIE_SAMESITE` attributes set. Additionally, user authentication state changes (login and logout) did not clear the existing session.
+**Learning:** This could expose the application to Cross-Site Scripting (XSS) allowing cookie theft, Cross-Site Request Forgery (CSRF) via session exploitation, and Session Fixation attacks if an attacker pre-created a session.
+**Prevention:** Always enforce secure cookie attributes `SESSION_COOKIE_HTTPONLY=True` and `SESSION_COOKIE_SAMESITE="Lax"`. Always use `session.clear()` upon logging in and logging out to renew the session context and securely end it.
