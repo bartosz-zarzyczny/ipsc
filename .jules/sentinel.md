@@ -1,4 +1,4 @@
-## 2024-05-20 - Session Fixation and Cookie Security
-**Vulnerability:** Session wasn't cleared on login/logout (only specific keys popped), and session cookies lacked HttpOnly and SameSite configurations.
-**Learning:** In Flask, `session.pop` is insufficient to prevent session fixation. `session.clear()` must be used to renew the session fully. Additionally, secure cookie flags must be explicitly set.
-**Prevention:** Always use `session.clear()` on privilege changes (login/logout) and set `SESSION_COOKIE_HTTPONLY=True` and `SESSION_COOKIE_SAMESITE="Lax"`.
+## 2026-05-06 - [Critical] Prevent Session Fixation and Ensure Secure Session Cookies
+**Vulnerability:** The application was vulnerable to Session Fixation because the user's session identifier was not refreshed/regenerated upon logging in. The session was also vulnerable to theft via XSS/CSRF due to missing `SESSION_COOKIE_HTTPONLY` and `SESSION_COOKIE_SAMESITE` flags in the Flask configuration.
+**Learning:** In Flask, the session identifier should always be explicitly cleared before a user logs in, using `session.clear()`, to guarantee that a new, unguessable session cookie is generated. Additionally, explicitly defining cookie attributes like `HttpOnly` and `SameSite` adds a crucial layer of defense in depth against cross-site scripting and cross-site request forgery attacks targeting sessions.
+**Prevention:** Always set `app.config["SESSION_COOKIE_HTTPONLY"] = True` and `app.config["SESSION_COOKIE_SAMESITE"] = "Lax"` in the initial application configuration. Also, invoke `session.clear()` at the boundaries of authentication state changes (on successful login and on logout) to ensure previous session data or identifiers cannot be reused.
