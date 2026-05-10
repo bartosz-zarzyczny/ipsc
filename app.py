@@ -116,6 +116,14 @@ def _ensure_standard_divisions_exist():
 _ensure_standard_divisions_exist()
 
 
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
 def admin_required(f):
     """Decorator: wymaga zalogowania do panelu admina."""
     @wraps(f)
@@ -478,7 +486,8 @@ def admin_upload():
         # Przypisz zawody do wybranego rankingu
         add_match_to_ranking(ranking_id, match_id)
     except Exception as exc:
-        return redirect(url_for("admin_panel") + f"?error=B%C5%82%C4%99d:+{str(exc)}")
+        app.logger.error("Error in admin_upload: %s", exc)
+        return redirect(url_for("admin_panel") + "?error=Wyst%C4%85pi%C5%82+b%C5%82%C4%85d+podczas+importu")
     finally:
         os.unlink(tmp.name)
     return redirect(url_for("admin_panel") + "?success=Zawody+zaimportowane+i+przypisane+do+rankingu")
@@ -504,7 +513,8 @@ def admin_update_match():
         update_match_rankings(match_id, ranking_ids)
         update_match_multiplier(match_id, multiplier)
     except Exception as exc:
-        return redirect(url_for("admin_panel") + f"?error=B%C5%82%C4%99d:+{str(exc)}")
+        app.logger.error("Error in admin_update_match: %s", exc)
+        return redirect(url_for("admin_panel") + "?error=Wyst%C4%85pi%C5%82+b%C5%82%C4%85d+podczas+aktualizacji")
     
     return redirect(url_for("admin_panel") + "?success=Zawody+zaktualizowane")
 
@@ -525,7 +535,8 @@ def admin_assign_rankings():
         update_match_rankings(match_id, ranking_ids)
         update_match_multiplier(match_id, multiplier)
     except Exception as exc:
-        return redirect(url_for("admin_panel") + f"?error=B%C5%82%C4%99d:+{str(exc)}")
+        app.logger.error("Error in admin_assign_rankings: %s", exc)
+        return redirect(url_for("admin_panel") + "?error=Wyst%C4%85pi%C5%82+b%C5%82%C4%85d+podczas+aktualizacji")
     
     return redirect(url_for("admin_panel") + "?success=Zawody+zaktualizowane")
 
