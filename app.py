@@ -471,11 +471,11 @@ def admin_upload():
     ranking_id = request.form.get("ranking_id", type=int)
     
     if not f or not f.filename:
-        return redirect(url_for("admin_panel") + "?error=Nie+wybrano+pliku")
+        return redirect(url_for("admin_panel", error="Nie wybrano pliku"))
     if not f.filename.lower().endswith(".cab"):
-        return redirect(url_for("admin_panel") + "?error=Plik+musi+mie%C4%87+rozszerzenie+.cab")
+        return redirect(url_for("admin_panel", error="Plik musi mieć rozszerzenie .cab"))
     if not ranking_id:
-        return redirect(url_for("admin_panel") + "?error=Musisz+wybra%C4%87+ranking")
+        return redirect(url_for("admin_panel", error="Musisz wybrać ranking"))
 
     tmp = tempfile.NamedTemporaryFile(suffix=".cab", delete=False)
     try:
@@ -487,10 +487,10 @@ def admin_upload():
         add_match_to_ranking(ranking_id, match_id)
     except Exception as exc:
         app.logger.error("Error in admin_upload: %s", exc)
-        return redirect(url_for("admin_panel") + "?error=Wyst%C4%85pi%C5%82+b%C5%82%C4%85d+podczas+importu")
+        return redirect(url_for("admin_panel", error="Wystąpił błąd podczas importu"))
     finally:
         os.unlink(tmp.name)
-    return redirect(url_for("admin_panel") + "?success=Zawody+zaimportowane+i+przypisane+do+rankingu")
+    return redirect(url_for("admin_panel", success="Zawody zaimportowane i przypisane do rankingu"))
 
 
 @app.route("/admin/matches/update", methods=["POST"])
@@ -503,7 +503,7 @@ def admin_update_match():
     multiplier = request.form.get("multiplier", type=float) or 1.0
     
     if not match_id:
-        return redirect(url_for("admin_panel") + "?error=Brak+ID+zawodów")
+        return redirect(url_for("admin_panel", error="Brak ID zawodów"))
     
     try:
         # Aktualizuj level
@@ -514,9 +514,9 @@ def admin_update_match():
         update_match_multiplier(match_id, multiplier)
     except Exception as exc:
         app.logger.error("Error in admin_update_match: %s", exc)
-        return redirect(url_for("admin_panel") + "?error=Wyst%C4%85pi%C5%82+b%C5%82%C4%85d+podczas+aktualizacji")
+        return redirect(url_for("admin_panel", error="Wystąpił błąd podczas aktualizacji"))
     
-    return redirect(url_for("admin_panel") + "?success=Zawody+zaktualizowane")
+    return redirect(url_for("admin_panel", success="Zawody zaktualizowane"))
 
 
 # Zachowaj stary endpoint dla kompatybilności
@@ -529,16 +529,16 @@ def admin_assign_rankings():
     multiplier = request.form.get("multiplier", type=float) or 1.0
     
     if not match_id:
-        return redirect(url_for("admin_panel") + "?error=Brak+ID+zawodów")
+        return redirect(url_for("admin_panel", error="Brak ID zawodów"))
     
     try:
         update_match_rankings(match_id, ranking_ids)
         update_match_multiplier(match_id, multiplier)
     except Exception as exc:
         app.logger.error("Error in admin_assign_rankings: %s", exc)
-        return redirect(url_for("admin_panel") + "?error=Wyst%C4%85pi%C5%82+b%C5%82%C4%85d+podczas+aktualizacji")
+        return redirect(url_for("admin_panel", error="Wystąpił błąd podczas aktualizacji"))
     
-    return redirect(url_for("admin_panel") + "?success=Zawody+zaktualizowane")
+    return redirect(url_for("admin_panel", success="Zawody zaktualizowane"))
 
 
 @app.route("/admin/delete/<int:match_id>", methods=["POST"])
@@ -647,37 +647,37 @@ def admin_change_password():
     
     # Validate inputs
     if not current_pwd or not new_pwd or not confirm_pwd:
-        return redirect(url_for("admin_panel") + "?tab=users&error=Puste+pola")
+        return redirect(url_for("admin_panel", tab="users", error="Puste pola"))
     
     if new_pwd != confirm_pwd:
-        return redirect(url_for("admin_panel") + "?tab=users&error=Has%C5%82a+nie+zgadzaj%C4%85+si%C4%99")
+        return redirect(url_for("admin_panel", tab="users", error="Hasła nie zgadzają się"))
     
     # Check session
     if not isinstance(username, str) or not username:
         print(f"[ERROR] Zmiana hasła: brak username w sesji. user_id={raw_user_id}")
-        return redirect(url_for("admin_panel") + "?tab=users&error=B%C5%82%C4%85d+sesji")
+        return redirect(url_for("admin_panel", tab="users", error="Błąd sesji"))
 
     if not isinstance(raw_user_id, (int, str)):
         print(f"[ERROR] Zmiana hasła: brak user_id w sesji. username={username}")
-        return redirect(url_for("admin_panel") + "?tab=users&error=B%C5%82%C4%85d+sesji")
+        return redirect(url_for("admin_panel", tab="users", error="Błąd sesji"))
 
     try:
         user_id = int(raw_user_id)
     except (TypeError, ValueError):
         print(f"[ERROR] Zmiana hasła: nieprawidłowy user_id w sesji. username={username}, user_id={raw_user_id}")
-        return redirect(url_for("admin_panel") + "?tab=users&error=B%C5%82%C4%85d+sesji")
+        return redirect(url_for("admin_panel", tab="users", error="Błąd sesji"))
     
     # Verify current password
     verify_result = verify_user(username, current_pwd)
     if verify_result is None:
-        return redirect(url_for("admin_panel") + "?tab=users&error=Nieprawid%C5%82owe+has%C5%82o")
+        return redirect(url_for("admin_panel", tab="users", error="Nieprawidłowe hasło"))
     
     # Update password
     if change_password(user_id, new_pwd):
-        return redirect(url_for("admin_panel") + "?tab=users&success=Has%C5%82o+zmienione")
+        return redirect(url_for("admin_panel", tab="users", success="Hasło zmienione"))
     else:
         app.logger.error("Zmiana hasła nie powiodła się. user_id=%s", user_id)
-        return redirect(url_for("admin_panel") + "?tab=users&error=Nie+uda%C5%82o+si%C4%99+zmieni%C4%87+has%C5%82a")
+        return redirect(url_for("admin_panel", tab="users", error="Nie udało się zmienić hasła"))
 
 
 # ---------------------------------------------------------------------------
