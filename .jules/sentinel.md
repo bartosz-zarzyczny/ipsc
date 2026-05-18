@@ -7,3 +7,8 @@
 **Vulnerability:** The application was vulnerable to Information Exposure because unhandled exceptions were stringified (`str(exc)`) and returned directly to the user in HTTP redirect query parameters, potentially leaking internal stack traces or context. Additionally, missing HTTP security headers left the app exposed to clickjacking and MIME-type sniffing.
 **Learning:** Exception details must be kept internal using logging mechanisms (`app.logger.error`), while users should only receive generic error messages. Furthermore, a global `@app.after_request` handler is an effective way to implement defense-in-depth across the entire application by enforcing headers like `X-Content-Type-Options: nosniff` and `X-Frame-Options: SAMEORIGIN`.
 **Prevention:** Never pass `str(exc)` or `exc.args` directly into user-facing responses or URLs. Always configure global security headers at the application level to ensure all endpoints benefit from standard browser protections.
+
+## 2026-05-08 - [Medium] Enhance URL parameter encoding security
+**Vulnerability:** The application was vulnerable to improper URL encoding because URL query strings were manually constructed and concatenated onto `url_for()` results (e.g., `redirect(url_for('admin_panel') + "?error=Puste+pola")`). This practice circumvents safe encoding and is a potential vector for HTTP parameter pollution or injection attacks if user inputs were ever concatenated into the query parameters.
+**Learning:** Using Flask's native `url_for` parameter kwargs guarantees that parameters are safely and correctly URL-encoded.
+**Prevention:** Always use `url_for` kwargs (e.g., `redirect(url_for("admin_panel", error="Wiadomość błędu"))`) instead of manually concatenating query parameters.
