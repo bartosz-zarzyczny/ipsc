@@ -8,7 +8,7 @@
 **Learning:** Exception details must be kept internal using logging mechanisms (`app.logger.error`), while users should only receive generic error messages. Furthermore, a global `@app.after_request` handler is an effective way to implement defense-in-depth across the entire application by enforcing headers like `X-Content-Type-Options: nosniff` and `X-Frame-Options: SAMEORIGIN`.
 **Prevention:** Never pass `str(exc)` or `exc.args` directly into user-facing responses or URLs. Always configure global security headers at the application level to ensure all endpoints benefit from standard browser protections.
 
-## 2026-05-08 - [Medium] Enhance URL parameter encoding security
-**Vulnerability:** The application was vulnerable to improper URL encoding because URL query strings were manually constructed and concatenated onto `url_for()` results (e.g., `redirect(url_for('admin_panel') + "?error=Puste+pola")`). This practice circumvents safe encoding and is a potential vector for HTTP parameter pollution or injection attacks if user inputs were ever concatenated into the query parameters.
-**Learning:** Using Flask's native `url_for` parameter kwargs guarantees that parameters are safely and correctly URL-encoded.
-**Prevention:** Always use `url_for` kwargs (e.g., `redirect(url_for("admin_panel", error="Wiadomość błędu"))`) instead of manually concatenating query parameters.
+## 2026-05-17 - [Medium] Fix HTTP Parameter Pollution and Injection Risks in Redirects
+**Vulnerability:** The application was vulnerable to potential HTTP Parameter Pollution and encoding issues because URL query parameters in redirects were constructed using manual string concatenation (e.g., `redirect(url_for(...) + "?error=Puste+pola")`) instead of using Flask's secure `url_for` parameter mechanism.
+**Learning:** Manual string concatenation for URL queries bypasses URL encoding rules, opening up possibilities for unexpected behavior, malformed URLs, and potentially injection attacks if user inputs were later incorporated into these concatenated URLs.
+**Prevention:** Always use `url_for` parameter kwargs (e.g., `redirect(url_for("admin_panel", error="Puste pola"))`) to ensure secure and correct URL encoding of all query parameters by the Flask framework.
