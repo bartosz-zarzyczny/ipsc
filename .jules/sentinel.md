@@ -15,5 +15,6 @@
 
 ## 2026-05-17 - [Medium] Fix HTTP Parameter Pollution and Injection Risks in Redirects
 **Vulnerability:** The application was vulnerable to potential HTTP Parameter Pollution and encoding issues because URL query parameters in redirects were constructed using manual string concatenation (e.g., `redirect(url_for(...) + "?error=Puste+pola")`) instead of using Flask's secure `url_for` parameter mechanism.
+**Context:** This entry documents a later recurrence of the same redirect-encoding anti-pattern identified on 2026-05-08 in another code path.
 **Learning:** Manual string concatenation for URL queries bypasses URL encoding rules, opening up possibilities for unexpected behavior, malformed URLs, and potentially injection attacks if user inputs were later incorporated into these concatenated URLs.
 **Prevention:** Always use `url_for` parameter kwargs (e.g., `redirect(url_for("admin_panel", error="Puste pola"))`) to ensure secure and correct URL encoding of all query parameters by the Flask framework.
