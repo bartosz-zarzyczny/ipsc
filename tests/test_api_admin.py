@@ -11,9 +11,11 @@ Pokrycie:
   - DELETE /api/matches/<id> (wymaga admina)
 """
 import json
+import pathlib
+
+import app as app_module
 import pytest
 import jsonschema
-import pathlib
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +104,37 @@ class TestAuthProtection:
         r = client.open(path, method=method,
                         content_type="application/json", data="{}")
         assert r.status_code == 401, f"{method} {path} powinno zwrócić 401, dostało {r.status_code}"
+
+
+def test_admin_can_update_region_list_url(admin_client, tmp_path, monkeypatch):
+    config_path = tmp_path / "lista.json"
+    monkeypatch.setattr(app_module, "LISTA_CONFIG_PATH", str(config_path))
+
+    response = admin_client.post(
+        "/admin/config/region-list-url",
+        data={"region_list_url": "https://ipsc-pl.org/region-polska/lista-zawodnikow-2027"},
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/admin?tab=region-link")
+    assert config_path.exists()
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["region_list_url"] == "https://ipsc-pl.org/region-polska/lista-zawodnikow-2027"
+
+
+def test_parse_region_list_html_returns_names():
+    html = '''
+    <table>
+      <tr><th>Lp</th><th>Licencja</th><th>Nazwisko</th><th>Imię</th><th>Alias</th></tr>
+      <tr><td>1</td><td>123</td><td>Kowalski</td><td>Jan</td><td></td></tr>
+      <tr><td>2</td><td>456</td><td>Nowak</td><td>Anna</td><td></td></tr>
+    </table>
+    '''
+    entries = app_module._parse_region_list_html(html)
+    assert entries == [
+        {"firstname": "Jan", "lastname": "Kowalski"},
+        {"firstname": "Anna", "lastname": "Nowak"},
+    ]
 
 
 # ---------------------------------------------------------------------------
