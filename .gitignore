@@ -198,6 +198,10 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Keep the region list URL config trackable even if the data directory is ignored elsewhere
+!data/
+!data/lista.json
+
 # Cursor
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
 #  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
