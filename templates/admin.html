@@ -17,6 +17,20 @@
     .rank-match-item { border: 1px solid #dee2e6; border-radius: 8px; padding: 10px 12px; background: #fff; }
     .rank-match-item + .rank-match-item { margin-top: 8px; }
     .rank-match-meta { font-size: .8rem; color: #6c757d; }
+    .not-on-region-list > td {
+      border: 2px solid #7f00ff !important;
+      border-top-width: 1px !important;
+      border-bottom-width: 1px !important;
+      background-color: #fbf0ff;
+    }
+    .not-on-region-list > td:first-child {
+      border-top-left-radius: 0.35rem;
+      border-bottom-left-radius: 0.35rem;
+    }
+    .not-on-region-list > td:last-child {
+      border-top-right-radius: 0.35rem;
+      border-bottom-right-radius: 0.35rem;
+    }
   </style>
 </head>
 <body>
@@ -74,6 +88,11 @@
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="divisions-tab" data-bs-toggle="tab" data-bs-target="#divisions" type="button" role="tab" aria-controls="divisions" aria-selected="false">
         <i class="bi bi-collection"></i> Mapowanie Dywizji
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="region-link-tab" data-bs-toggle="tab" data-bs-target="#region-link" type="button" role="tab" aria-controls="region-link" aria-selected="false">
+        <i class="bi bi-link-45deg"></i> Link listy regionu
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -324,6 +343,7 @@
             <option value="{{ m.id }}">{{ m.name }} ({{ m.date or 'brak daty' }})</option>
             {% endfor %}
           </select>
+          <p class="small mb-3" style="color: #7f00ff; font-weight: 700;">Zawodnicy spoza listy regionu zostaną oznaczeni fioletową ramką.</p>
 
           <div id="competitorsContainer" style="display:none;">
             <div class="table-responsive">
@@ -539,6 +559,32 @@
       </div>
     </div>
 
+    <div class="tab-pane fade" id="region-link" role="tabpanel" aria-labelledby="region-link-tab">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="bi bi-link-45deg"></i> Link sprawdzenia listy regionu</h6>
+          <p class="text-muted small mb-3">
+            Wprowadź adres URL strony, na której można sprawdzić zawodnika na liście regionu.
+          </p>
+          <form action="/admin/config/region-list-url" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="regionListEnabled" name="region_list_enabled" value="1" {% if region_list_enabled %}checked{% endif %}>
+              <label class="form-check-label" for="regionListEnabled">Włącz sprawdzanie obecności zawodnika na liście regionu</label>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Aktualny link</label>
+              <input type="url" name="region_list_url" class="form-control" placeholder="https://example.com" value="{{ region_list_url }}" required>
+              <div class="form-text">Link jest zapisany w pliku <code>data/lista.json</code>.</div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-save"></i> Zapisz ustawienia
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
   </div>
 
 </div>
@@ -553,6 +599,16 @@
 
     const tab = bootstrap.Tab.getOrCreateInstance(button);
     tab.show();
+  }
+
+  const regionListNames = {{ region_list_names | tojson | safe }};
+  const regionListSet = new Set(
+    regionListNames.map(item => `${String(item.firstname || '').trim()} ${String(item.lastname || '').trim()}`.trim().toLowerCase())
+  );
+
+  function isOnRegionList(firstname, lastname) {
+    const normalized = `${String(firstname || '').trim()} ${String(lastname || '').trim()}`.trim().toLowerCase();
+    return regionListSet.has(normalized);
   }
 
   window.addEventListener('load', function() {
@@ -738,6 +794,9 @@
         })
       );
 
+      if (!isOnRegionList(c.firstname, c.lastname)) {
+        row.classList.add('not-on-region-list');
+      }
       row.appendChild(actionsCell);
       competitorsList.appendChild(row);
     });

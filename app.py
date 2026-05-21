@@ -9,11 +9,16 @@ Otwórz:   http://localhost:5000
 from __future__ import annotations
 import json
 import os
+import re
 import secrets
+import ssl
 import tempfile
 import threading
+import time
+import urllib.request
 import webbrowser
 from functools import wraps
+from html.parser import HTMLParser
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
@@ -66,6 +71,10 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+LISTA_CONFIG_PATH = os.path.join(DATA_DIR, "lista.json")
+DEFAULT_REGION_LIST_URL = "https://ipsc-pl.org/region-polska/lista-zawodnikow-2026"
 
 csrf = CSRFProtect(app)
 limiter = Limiter(
@@ -134,6 +143,149 @@ def admin_required(f):
             return redirect(url_for("admin_login"))
         return f(*args, **kwargs)
     return decorated
+
+
+def _load_region_list_config() -> dict:
+    if os.path.exists(LISTA_CONFIG_PATH):
+        try:
+            with open(LISTA_CONFIG_PATH, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                if isinstance(config, dict):
+                    return config
+        except (ValueError, OSError):
+            pass
+    return {}
+
+
+def _load_region_list_url() -> str:
+    """Load the region list URL from data/lista.json or return default."""
+    config = _load_region_list_config()
+    url = config.get("region_list_url")
+    if isinstance(url, str) and url.strip():
+        return url.strip()
+    return DEFAULT_REGION_LIST_URL
+
+
+def _load_region_list_enabled() -> bool:
+    config = _load_region_list_config()
+    enabled = config.get("region_list_enabled")
+    if isinstance(enabled, bool):
+        return enabled
+    if isinstance(enabled, str):
+        return enabled.strip().lower() in ("1", "true", "yes", "on")
+    return True
+
+
+def _save_region_list_config(overrides: dict) -> None:
+    os.makedirs(os.path.dirname(LISTA_CONFIG_PATH), exist_ok=True)
+    config = _load_region_list_config()
+    config.update(overrides)
+    with open(LISTA_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
+
+def _save_region_list_url(url: str) -> None:
+    _save_region_list_config({"region_list_url": url.strip()})
+
+
+class _RegionListHTMLParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tables: list[list[list[str]]] = []
+        self._current_table: list[list[str]] | None = None
+        self._current_row: list[str] | None = None
+        self._current_cell: list[str] | None = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "table":
+            self._current_table = []
+        elif tag == "tr" and self._current_table is not None:
+            self._current_row = []
+        elif tag in ("td", "th") and self._current_row is not None:
+            self._current_cell = []
+
+    def handle_data(self, data):
+        if self._current_cell is not None:
+            self._current_cell.append(data)
+
+    def handle_endtag(self, tag):
+        if tag in ("td", "th") and self._current_cell is not None and self._current_row is not None:
+            self._current_row.append("".join(self._current_cell).strip())
+            self._current_cell = None
+        elif tag == "tr" and self._current_row is not None and self._current_table is not None:
+            self._current_table.append(self._current_row)
+            self._current_row = None
+        elif tag == "table" and self._current_table is not None:
+            self.tables.append(self._current_table)
+            self._current_table = None
+
+
+def _parse_region_list_html(html: str) -> list[dict[str, str]]:
+    parser = _RegionListHTMLParser()
+    parser.feed(html)
+    parser.close()
+
+    for table in parser.tables:
+        if not table or len(table) < 2:
+            continue
+
+        header = [cell.strip().lower() for cell in table[0]]
+        try:
+            lastname_index = next(i for i, value in enumerate(header) if value in ("nazwisko", "surname"))
+            firstname_index = next(i for i, value in enumerate(header) if value in ("imię", "imie", "name", "first name", "firstname"))
+        except StopIteration:
+            continue
+
+        entries: list[dict[str, str]] = []
+        for row in table[1:]:
+            if len(row) <= max(lastname_index, firstname_index):
+                continue
+            lastname = row[lastname_index].strip()
+            firstname = row[firstname_index].strip()
+            if lastname or firstname:
+                entries.append({"firstname": firstname, "lastname": lastname})
+        if entries:
+            return entries
+
+    cleaned = re.sub(r"<script.*?</script>", "", html, flags=re.S | re.I)
+    result: list[dict[str, str]] = []
+    for match in re.finditer(r"([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)\s+([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)", cleaned):
+        result.append({"firstname": match.group(2), "lastname": match.group(1)})
+    return result
+
+
+def _fetch_region_list_entries(url: str) -> list[dict[str, str]]:
+    if not url:
+        return []
+
+    if getattr(_fetch_region_list_entries, "cache", None) is None:
+        _fetch_region_list_entries.cache = {"url": None, "ts": 0, "entries": []}
+
+    cache = _fetch_region_list_entries.cache
+    now = time.time()
+    if cache["url"] == url and now - cache["ts"] < 300:
+        return cache["entries"]
+
+    try:
+        ctx = ssl._create_unverified_context()
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, context=ctx, timeout=20) as response:
+            html = response.read().decode("utf-8", errors="replace")
+        entries = _parse_region_list_html(html)
+        cache.update({"url": url, "ts": now, "entries": entries})
+        return entries
+    except Exception as exc:
+        app.logger.warning("Nie udało się pobrać listy regionu z %s: %s", url, exc)
+        return []
+
+
+def _save_region_list_url(url: str) -> None:
+    """Save the region list URL to data/lista.json."""
+    os.makedirs(os.path.dirname(LISTA_CONFIG_PATH), exist_ok=True)
+    config = _load_region_list_config()
+    config["region_list_url"] = url.strip()
+    with open(LISTA_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
 
 
 # ---------------------------------------------------------------------------
@@ -454,13 +606,40 @@ def admin_panel():
     rankings = list_rankings()
     editing_ranking_id = request.args.get("edit_ranking_id", type=int)
     editing_ranking = get_ranking(editing_ranking_id) if editing_ranking_id else None
+    region_list_url = _load_region_list_url()
+    region_list_enabled = _load_region_list_enabled()
+    region_list_names = _fetch_region_list_entries(region_list_url) if region_list_enabled else []
     return render_template(
         "admin.html",
         matches=matches,
         users=users,
         rankings=rankings,
         editing_ranking=editing_ranking,
+        region_list_url=region_list_url,
+        region_list_enabled=region_list_enabled,
+        region_list_names=region_list_names,
     )
+
+
+@app.route("/admin/config/region-list-url", methods=["POST"])
+@admin_required
+def admin_update_region_list_url():
+    region_list_url = request.form.get("region_list_url", "").strip()
+    region_list_enabled = bool(request.form.get("region_list_enabled"))
+
+    if not region_list_url:
+        return redirect(url_for("admin_panel", tab="region-link", error="Adres URL nie może być pusty"))
+
+    try:
+        _save_region_list_config({
+            "region_list_url": region_list_url,
+            "region_list_enabled": region_list_enabled,
+        })
+    except Exception as exc:
+        app.logger.error("Error saving region list URL: %s", exc)
+        return redirect(url_for("admin_panel", tab="region-link", error="Nie udało się zapisać linku"))
+
+    return redirect(url_for("admin_panel", tab="region-link", success="Link zapisany"))
 
 
 @app.route("/admin/upload", methods=["POST"])
