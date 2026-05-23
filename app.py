@@ -254,9 +254,38 @@ def _parse_region_list_html(html: str) -> list[dict[str, str]]:
     return result
 
 
+from urllib.parse import urlparse
+import ipaddress
+import socket
+
 def _fetch_region_list_entries(url: str) -> list[dict[str, str]]:
     if not url:
         return []
+
+    # SSRF Prevention: Validate URL scheme and hostname
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in ("http", "https"):
+        app.logger.warning("SSRF blocked: Invalid URL scheme %s", parsed_url.scheme)
+        return []
+
+    hostname = parsed_url.hostname
+    if hostname:
+        # Resolve all IPs for the hostname (both IPv4 and IPv6)
+        try:
+            addr_info = socket.getaddrinfo(hostname, None)
+            for item in addr_info:
+                ip_str = item[4][0]
+                ip_obj = ipaddress.ip_address(ip_str)
+                if ip_obj.is_loopback or ip_obj.is_private or ip_obj.is_reserved or ip_obj.is_link_local or ip_obj.is_multicast:
+                    app.logger.warning("SSRF blocked: Private/Loopback IP %s for hostname %s", ip_str, hostname)
+                    return []
+        except (socket.gaierror, ValueError) as exc:
+            app.logger.warning("SSRF blocked: Error resolving hostname %s: %s", hostname, exc)
+            return []
+
+        if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+            app.logger.warning("SSRF blocked: Local hostname %s", hostname)
+            return []
 
     if getattr(_fetch_region_list_entries, "cache", None) is None:
         _fetch_region_list_entries.cache = {"url": None, "ts": 0, "entries": []}

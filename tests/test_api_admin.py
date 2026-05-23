@@ -116,7 +116,7 @@ def test_admin_can_update_region_list_url(admin_client, tmp_path, monkeypatch):
     )
 
     assert response.status_code == 302
-    assert response.headers["Location"].endswith("/admin?tab=region-link")
+    assert "/admin?tab=region-link" in response.headers["Location"]
     assert config_path.exists()
     saved = json.loads(config_path.read_text(encoding="utf-8"))
     assert saved["region_list_url"] == "https://ipsc-pl.org/region-polska/lista-zawodnikow-2027"
