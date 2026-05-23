@@ -12,3 +12,8 @@
 **Vulnerability:** The application was vulnerable to potential HTTP Parameter Pollution and encoding issues because URL query parameters in redirects were constructed using manual string concatenation (e.g., `redirect(url_for(...) + "?error=Puste+pola")`) instead of using Flask's secure `url_for` parameter mechanism.
 **Learning:** Manual string concatenation for URL queries bypasses URL encoding rules, opening up possibilities for unexpected behavior, malformed URLs, and potentially injection attacks if user inputs were later incorporated into these concatenated URLs.
 **Prevention:** Always use `url_for` parameter kwargs (e.g., `redirect(url_for("admin_panel", error="Puste pola"))`) to ensure secure and correct URL encoding of all query parameters by the Flask framework.
+
+## 2026-05-23 - [Critical] Prevent Server-Side Request Forgery (SSRF)
+**Vulnerability:** The application was vulnerable to SSRF because the `_fetch_region_list_entries` function in `app.py` directly fetched data from an arbitrary URL provided via the admin panel. An attacker could use this to access local system files (e.g., using `file:///etc/passwd`) or probe internal endpoints on the network, such as `http://localhost:8080/` or internal IPs.
+**Learning:** External URL fetching must strictly validate the input to ensure it only requests expected schemas (HTTP/HTTPS) and public hosts. Without validation, an attacker can coerce the server to act as a proxy and interact with internal systems that it shouldn't access.
+**Prevention:** Always validate URL inputs that trigger server-side requests. Specifically, ensure the scheme is `http` or `https`, and that the resolved IP address of the hostname is not a private, loopback, link-local, multicast, or reserved IP address.
