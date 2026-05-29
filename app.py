@@ -941,8 +941,11 @@ def admin_update_competitor(match_id):
     comp_id = data.get("comp_id")
     firstname = data.get("firstname", "").strip()
     lastname = data.get("lastname", "").strip()
-    raw_category = data.get("category", "")
-    category = raw_category.strip() if isinstance(raw_category, str) and raw_category.strip() else None
+    raw_category = data.get("category")
+    if raw_category is None:
+        category = None
+    else:
+        category = raw_category.strip() if isinstance(raw_category, str) else str(raw_category).strip()
     
     if not comp_id or not firstname or not lastname:
         return jsonify({"error": "Brak wymaganych pól: comp_id, firstname, lastname"}), 400

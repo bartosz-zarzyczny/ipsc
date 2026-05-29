@@ -197,6 +197,23 @@ class TestCompetitorsApi:
         assert updated["firstname"] == "Nowe"
         assert updated["lastname"] == "Nazwisko"
 
+    def test_update_competitor_can_clear_category(self, admin_client, match_id, client):
+        # Ustaw kategorię, a następnie wyczyść ją znów pustą wartością.
+        admin_client.post(
+            f"/admin/api/competitors/{match_id}",
+            json={"comp_id": "301", "firstname": "Nowe", "lastname": "Nazwisko", "category": "Lady"},
+        )
+        r = admin_client.post(
+            f"/admin/api/competitors/{match_id}",
+            json={"comp_id": "301", "firstname": "Nowe", "lastname": "Nazwisko", "category": ""},
+        )
+        assert r.status_code == 200
+        assert r.get_json()["ok"] is True
+
+        match_data = client.get(f"/api/matches/{match_id}").get_json()
+        updated = next(c for c in match_data["competitors"] if c["comp_id"] == "301")
+        assert updated["category"] == ""
+
     def test_update_competitor_missing_fields_returns_400(self, admin_client, match_id):
         r = admin_client.post(
             f"/admin/api/competitors/{match_id}",
