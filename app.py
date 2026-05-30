@@ -845,6 +845,7 @@ def admin_delete_user(user_id):
 
 @app.route("/admin/change-password", methods=["POST"])
 @admin_required
+@limiter.limit("10 per minute")
 def admin_change_password():
     """Change password for logged-in user."""
     username = session.get("username")

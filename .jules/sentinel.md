@@ -17,3 +17,7 @@
 **Vulnerability:** The application was vulnerable to SSRF because the `_fetch_region_list_entries` function in `app.py` directly fetched data from an arbitrary URL provided via the admin panel. An attacker could use this to access local system files (e.g., using `file:///etc/passwd`) or probe internal endpoints on the network, such as `http://localhost:8080/` or internal IPs.
 **Learning:** External URL fetching must strictly validate the input to ensure it only requests expected schemas (HTTP/HTTPS) and public hosts. Without validation, an attacker can coerce the server to act as a proxy and interact with internal systems that it shouldn't access.
 **Prevention:** Always validate URL inputs that trigger server-side requests. Specifically, ensure the scheme is `http` or `https`, and that the resolved IP address of the hostname is not a private, loopback, link-local, multicast, or reserved IP address.
+## 2026-05-24 - [High] Rate Limit Password Changes
+**Vulnerability:** The application was vulnerable to brute-force attacks and denial-of-service on the `/admin/change-password` endpoint because it lacked rate limiting.
+**Learning:** All endpoints related to authentication or credential management (like login, password reset, and password change) must be rate-limited to prevent automated attacks. The Flask-Limiter extension was already configured for the login route, but forgotten on the change-password route.
+**Prevention:** Apply `@limiter.limit` decorators to all routes that handle sensitive authentication state.
