@@ -296,7 +296,7 @@ def _fetch_region_list_entries(url: str) -> list[dict[str, str]]:
         return cache["entries"]
 
     try:
-        ctx = ssl._create_unverified_context()
+        ctx = ssl.create_default_context()
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, context=ctx, timeout=20) as response:
             html = response.read().decode("utf-8", errors="replace")

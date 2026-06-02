@@ -21,3 +21,7 @@
 **Vulnerability:** The application was vulnerable to brute-force attacks and denial-of-service on the `/admin/change-password` endpoint because it lacked rate limiting.
 **Learning:** All endpoints related to authentication or credential management (like login, password reset, and password change) must be rate-limited to prevent automated attacks. The Flask-Limiter extension was already configured for the login route, but forgotten on the change-password route.
 **Prevention:** Apply `@limiter.limit` decorators to all routes that handle sensitive authentication state.
+## 2026-05-25 - [Critical] Enforce SSL Certificate Validation on External HTTPS Requests
+**Vulnerability:** The application disabled SSL certificate validation when fetching the region list (`ctx = ssl._create_unverified_context()`). This exposed the app to Man-in-the-Middle (MITM) attacks, allowing attackers to intercept, spoof, or modify the data returned from the remote server.
+**Learning:** Bypassing SSL validation defeats the purpose of using HTTPS. Even if the remote server is trusted, the network path is not. Default SSL contexts verify the server certificate against the system trust store to ensure authenticity and encryption integrity.
+**Prevention:** Always use `ssl.create_default_context()` to construct an SSL context that validates certificates securely when making external HTTP requests.
