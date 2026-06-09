@@ -258,6 +258,34 @@ from urllib.parse import urlparse
 import ipaddress
 import socket
 
+class SSRFSafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # SSRF Prevention on redirect
+        parsed_url = urlparse(newurl)
+        if parsed_url.scheme not in ("http", "https"):
+            app.logger.warning("SSRF blocked on redirect: Invalid URL scheme %s", parsed_url.scheme)
+            return None
+
+        hostname = parsed_url.hostname
+        if hostname:
+            try:
+                addr_info = socket.getaddrinfo(hostname, None)
+                for item in addr_info:
+                    ip_str = item[4][0]
+                    ip_obj = ipaddress.ip_address(ip_str)
+                    if ip_obj.is_loopback or ip_obj.is_private or ip_obj.is_reserved or ip_obj.is_link_local or ip_obj.is_multicast:
+                        app.logger.warning("SSRF blocked on redirect: Private/Loopback IP %s for hostname %s", ip_str, hostname)
+                        return None
+            except (socket.gaierror, ValueError) as exc:
+                app.logger.warning("SSRF blocked on redirect: Error resolving hostname %s: %s", hostname, exc)
+                return None
+
+            if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+                app.logger.warning("SSRF blocked on redirect: Local hostname %s", hostname)
+                return None
+
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
 def _fetch_region_list_entries(url: str) -> list[dict[str, str]]:
     if not url:
         return []
@@ -297,8 +325,13 @@ def _fetch_region_list_entries(url: str) -> list[dict[str, str]]:
 
     try:
         ctx = ssl.create_default_context()
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPSHandler(context=ctx),
+            urllib.request.HTTPHandler(),
+            SSRFSafeRedirectHandler()
+        )
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, context=ctx, timeout=20) as response:
+        with opener.open(req, timeout=20) as response:
             html = response.read().decode("utf-8", errors="replace")
         entries = _parse_region_list_html(html)
         cache.update({"url": url, "ts": now, "entries": entries})
