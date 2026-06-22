@@ -852,6 +852,7 @@ def admin_users_list():
 
 @app.route("/admin/users", methods=["POST"])
 @admin_required
+@limiter.limit("10 per minute")
 def admin_create_user():
     """Create a new user."""
     username = request.form.get("username", "").strip()
@@ -870,6 +871,7 @@ def admin_create_user():
 
 @app.route("/admin/users/<int:user_id>", methods=["POST"])
 @admin_required
+@limiter.limit("10 per minute")
 def admin_delete_user(user_id):
     """Delete a user."""
     delete_user(user_id)
