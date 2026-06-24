@@ -34,3 +34,7 @@
 **Vulnerability:** The application was vulnerable to abuse and denial-of-service on the `/admin/users` (POST for creation) and `/admin/users/<int:user_id>` (POST for deletion) endpoints because they lacked rate limiting.
 **Learning:** Endpoints that allow state mutation by administrators, particularly those related to account creation and deletion, should be rate-limited to prevent malicious scripts from overwhelming the application or rapidly altering state if an admin session is hijacked.
 **Prevention:** Apply `@limiter.limit` decorators to routes that perform sensitive or resource-intensive state changes.
+## 2026-06-25 - [High] Enforce Minimum Password Length
+**Vulnerability:** Weak passwords could be created via the admin interface because there were no minimum length requirements enforced on the server-side, and HTML `minlength` validation was missing on some inputs.
+**Learning:** Security controls like password length must be enforced both on the client-side (for UX) and the server-side (to prevent bypassing UI checks). A minimum length of 8 characters provides a baseline defense against dictionary and brute-force attacks.
+**Prevention:** Always implement server-side validation for sensitive fields like passwords, returning appropriate error messages using existing pattern structures like Flask flashes/URL parameters, and complement it with HTML5 attributes (`minlength`).
