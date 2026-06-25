@@ -859,14 +859,17 @@ def admin_create_user():
     password = request.form.get("password", "").strip()
     
     if not username or not password:
-        return redirect(url_for("admin_panel"))
+        return redirect(url_for("admin_panel", tab="users", error="Puste pola"))
+
+    if len(password) < 8:
+        return redirect(url_for("admin_panel", tab="users", error="Hasło musi mieć co najmniej 8 znaków"))
     
     try:
         add_user(username, password)
     except Exception:
-        pass  # Username already exists or other error
+        return redirect(url_for("admin_panel", tab="users", error="Nie udało się dodać użytkownika (być może nazwa jest już zajęta)"))
     
-    return redirect(url_for("admin_panel"))
+    return redirect(url_for("admin_panel", tab="users", success="Użytkownik dodany"))
 
 
 @app.route("/admin/users/<int:user_id>", methods=["POST"])
@@ -893,6 +896,9 @@ def admin_change_password():
     if not current_pwd or not new_pwd or not confirm_pwd:
         return redirect(url_for("admin_panel", tab="users", error="Puste pola"))
     
+    if len(new_pwd) < 8:
+        return redirect(url_for("admin_panel", tab="users", error="Hasło musi mieć co najmniej 8 znaków"))
+
     if new_pwd != confirm_pwd:
         return redirect(url_for("admin_panel", tab="users", error="Hasła nie zgadzają się"))
     
