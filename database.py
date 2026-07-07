@@ -567,6 +567,14 @@ def verify_user(username: str, raw_password: str) -> int | None:
     return None
 
 
+def user_exists(user_id: int) -> bool:
+    """Check if a user with the given id exists in the database."""
+    conn = get_db()
+    row = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return row is not None
+
+
 def list_users() -> list[dict]:
     """Return all users (without password hashes)."""
     conn = get_db()

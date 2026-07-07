@@ -38,3 +38,7 @@
 **Vulnerability:** Weak passwords could be created via the admin interface because there were no minimum length requirements enforced on the server-side, and HTML `minlength` validation was missing on some inputs.
 **Learning:** Security controls like password length must be enforced both on the client-side (for UX) and the server-side (to prevent bypassing UI checks). A minimum length of 8 characters provides a baseline defense against dictionary and brute-force attacks.
 **Prevention:** Always implement server-side validation for sensitive fields like passwords, returning appropriate error messages using existing pattern structures like Flask flashes/URL parameters, and complement it with HTML5 attributes (`minlength`).
+## 2025-02-14 - Session Invalidation on User Deletion
+**Vulnerability:** Authorization bypass where deleted users retained admin access.
+**Learning:** Checking for `session.get("admin")` alone on protected endpoints is insufficient, as the session cookie persists in the user's browser after their account is deleted from the database.
+**Prevention:** Always validate session persistence against the database on protected endpoints by ensuring the `user_id` stored in the session still corresponds to an active account.
