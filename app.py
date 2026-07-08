@@ -36,6 +36,7 @@ from database import (
     delete_match,
     add_user,
     verify_user,
+    user_exists,
     list_users,
     delete_user,
     change_password,
@@ -141,6 +142,14 @@ def admin_required(f):
             if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
                 return jsonify({"error": "Wymagane zalogowanie"}), 401
             return redirect(url_for("admin_login"))
+
+        user_id = session.get("user_id")
+        if user_id is None or not user_exists(user_id):
+            session.clear()
+            if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"error": "Wymagane zalogowanie"}), 401
+            return redirect(url_for("admin_login"))
+
         return f(*args, **kwargs)
     return decorated
 
